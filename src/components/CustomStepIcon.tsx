@@ -5,6 +5,7 @@ import { StepIconProps, styled, Tooltip, Box } from '@mui/material';
 interface CustomStepIconProps extends StepIconProps {
   hasWarning?: boolean;
   isComplete?: boolean;
+  isActive?: boolean;
   sectionTitle?: string;
   completionStatus?: {
     total: number;
@@ -14,7 +15,11 @@ interface CustomStepIconProps extends StepIconProps {
 }
 
 const StepIconRoot = styled('div')<{
-  ownerState: { active?: boolean; hasWarning?: boolean; completed?: boolean };
+  ownerState: { 
+    active?: boolean; 
+    hasWarning?: boolean; 
+    completed?: boolean;
+  };
 }>(({ theme, ownerState }) => ({
   backgroundColor: theme.palette.grey[300],
   zIndex: 1,
@@ -36,7 +41,7 @@ const StepIconRoot = styled('div')<{
 
   ...(ownerState.active && {
     backgroundColor: theme.palette.primary.main,
-    boxShadow: '0 4px 10px 0 rgba(33, 150, 243, 0.3)',
+    boxShadow: `0 0 0 2px ${theme.palette.primary.main}`,
     '&:hover': {
       backgroundColor: theme.palette.primary.dark,
       transform: 'scale(1.1)',
@@ -94,12 +99,12 @@ const ProgressIndicator = styled('div')<{
 
 export const CustomStepIcon: React.FC<CustomStepIconProps> = (props) => {
   const { 
-    active, 
     completed, 
     hasWarning, 
     icon, 
     sectionTitle,
-    completionStatus 
+    completionStatus,
+    isActive,
   } = props;
 
   const getTooltipContent = () => {
@@ -109,7 +114,7 @@ export const CustomStepIcon: React.FC<CustomStepIconProps> = (props) => {
     if (hasWarning) {
       return `${sectionTitle} - Incomplete (${completionStatus?.completed}/${completionStatus?.required} required fields)`;
     }
-    if (active) {
+    if (isActive) {
       return `${sectionTitle} - Current section`;
     }
     return `Click to go to ${sectionTitle}`;
@@ -122,13 +127,13 @@ export const CustomStepIcon: React.FC<CustomStepIconProps> = (props) => {
   return (
     <Tooltip title={getTooltipContent()} arrow placement="top">
       <Box>
-        <StepIconRoot ownerState={{ active, completed, hasWarning }}>
+        <StepIconRoot ownerState={{ active: isActive, completed, hasWarning }}>
           {completed ? (
             <CheckIcon sx={{ fontSize: 20 }} />
           ) : hasWarning ? (
             <WarningIcon sx={{ fontSize: 20 }} />
           ) : (
-            <StepNumber ownerState={{ active }}>{icon}</StepNumber>
+            <StepNumber ownerState={{ active: isActive }}>{icon}</StepNumber>
           )}
           <ProgressIndicator progress={progress} />
         </StepIconRoot>

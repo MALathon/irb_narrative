@@ -111,14 +111,22 @@ const App: React.FC = () => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <NarrativeProvider>
-        <Box sx={{ flexGrow: 1 }}>
+        <Box 
+          sx={{ 
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
           <AppBar 
-            position="fixed" 
+            position="fixed"
             elevation={0}
             sx={{
               borderBottom: '1px solid',
               borderColor: 'divider',
               backgroundColor: 'background.paper',
+              zIndex: (theme) => theme.zIndex.drawer + 1,
             }}
           >
             <Toolbar>
@@ -173,13 +181,15 @@ const App: React.FC = () => {
             </Toolbar>
           </AppBar>
 
+          <Toolbar /> {/* Spacer for fixed AppBar */}
+
           <Box
             component="main"
             sx={{
               flexGrow: 1,
-              pt: { xs: 8, sm: 9 },
-              minHeight: '100vh',
-              backgroundColor: 'background.default',
+              position: 'relative',
+              overflow: 'hidden',
+              height: '100%',
             }}
           >
             <NarrativeContent 

@@ -74,32 +74,35 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
     setActiveStep(step);
     setVisitedSteps(prev => new Set([...prev, step]));
     
-    // Adjust carousel position if needed
+    // Only adjust carousel if step is outside visible range
+    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
     if (step < carouselStart) {
-      setCarouselStart(Math.max(0, step));
+      setCarouselStart(step);
     } else if (step >= carouselStart + VISIBLE_STEPS) {
-      setCarouselStart(Math.min(sections.length - VISIBLE_STEPS, step));
+      setCarouselStart(Math.min(maxStart, step));
     }
   }, [carouselStart, sections.length]);
 
-  const handleFastForward = () => {
-    const newStart = Math.min(sections.length - VISIBLE_STEPS, carouselStart + VISIBLE_STEPS);
-    setCarouselStart(newStart);
-    setActiveStep(newStart);
-  };
+  const handleCarouselScroll = useCallback((direction: 'left' | 'right') => {
+    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
+    
+    if (direction === 'left') {
+      setCarouselStart(current => Math.max(0, current - 1));
+    } else {
+      setCarouselStart(current => Math.min(maxStart, current + 1));
+    }
+  }, [sections.length]);
 
-  const handleFastRewind = () => {
-    const newStart = Math.max(0, carouselStart - VISIBLE_STEPS);
-    setCarouselStart(newStart);
-    setActiveStep(newStart);
-  };
+  const handleFastForward = useCallback(() => {
+    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
+    setCarouselStart(maxStart);
+    setActiveStep(sections.length - 1);
+  }, [sections.length]);
 
-  const handleCarouselScroll = (direction: 'left' | 'right') => {
-    const newStart = direction === 'left' 
-      ? Math.max(0, carouselStart - 1)
-      : Math.min(sections.length - VISIBLE_STEPS, carouselStart + 1);
-    setCarouselStart(newStart);
-  };
+  const handleFastRewind = useCallback(() => {
+    setCarouselStart(0);
+    setActiveStep(0);
+  }, []);
 
   const getSectionCompletionStatus = useCallback((section: NarrativeSection) => {
     const sectionFields = section.fields;
@@ -322,16 +325,20 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
       <Box
         sx={{
           width: '100%',
-          mb: 4,
           display: 'flex',
           alignItems: 'center',
-          gap: 1,
+          gap: 2,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {leftHidden > 0 && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {leftHidden > 0 ? (
             <>
-              <IconButton onClick={handleFastRewind} color="primary">
+              <IconButton 
+                onClick={handleFastRewind} 
+                color="primary"
+                size="small"
+                title="Go to start"
+              >
                 <FastRewindIcon />
               </IconButton>
               <Typography
@@ -344,39 +351,75 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                   borderRadius: 1,
                   minWidth: 24,
                   textAlign: 'center',
+                  fontSize: '0.75rem',
                 }}
               >
-                +{leftHidden}
+                1-{leftHidden}
               </Typography>
-              <IconButton onClick={() => handleCarouselScroll('left')} size="small">
+              <IconButton 
+                onClick={() => handleCarouselScroll('left')} 
+                size="small"
+              >
                 <KeyboardArrowLeft />
               </IconButton>
             </>
+          ) : (
+            <Box
+              sx={{
+                width: 4,
+                height: 24,
+                bgcolor: 'primary.main',
+                borderRadius: 1,
+                mr: 1,
+              }}
+            />
           )}
         </Box>
 
         <Stepper 
           activeStep={activeStep} 
+          nonLinear
           sx={{ 
             flex: 1,
             '& .MuiStepLabel-root': {
               cursor: 'pointer',
+              padding: '0 16px',
+            },
+            '& .MuiStepLabel-labelContainer': {
+              width: 'auto',
+              color: 'text.primary',
+            },
+            '& .MuiStepLabel-label': {
+              fontSize: '0.875rem',
+            },
+            '& .Mui-active': {
+              color: 'primary.main',
+              fontWeight: 600,
             },
           }}
         >
           {sections.slice(carouselStart, carouselStart + VISIBLE_STEPS).map((section, index) => {
             const absoluteIndex = index + carouselStart;
             const { isComplete, hasWarning, completionStatus } = getStepStatus(absoluteIndex);
+            const isActive = absoluteIndex === activeStep;
+            
             return (
-              <Step key={section.id} completed={isComplete}>
+              <Step 
+                key={section.id} 
+                completed={isComplete}
+                active={isActive}
+              >
                 <StepLabel
                   onClick={() => handleStepClick(absoluteIndex)}
                   StepIconComponent={(props) => (
                     <CustomStepIcon 
                       {...props} 
-                      hasWarning={hasWarning && visitedSteps.has(absoluteIndex) && absoluteIndex !== activeStep}
+                      hasWarning={hasWarning && visitedSteps.has(absoluteIndex) && !isActive}
                       sectionTitle={section.title}
                       completionStatus={completionStatus}
+                      icon={absoluteIndex + 1}
+                      isComplete={isComplete}
+                      isActive={isActive}
                     />
                   )}
                 >
@@ -387,10 +430,13 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
           })}
         </Stepper>
 
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          {rightHidden > 0 && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {rightHidden > 0 ? (
             <>
-              <IconButton onClick={() => handleCarouselScroll('right')} size="small">
+              <IconButton 
+                onClick={() => handleCarouselScroll('right')} 
+                size="small"
+              >
                 <KeyboardArrowRight />
               </IconButton>
               <Typography
@@ -403,14 +449,30 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                   borderRadius: 1,
                   minWidth: 24,
                   textAlign: 'center',
+                  fontSize: '0.75rem',
                 }}
               >
-                +{rightHidden}
+                {sections.length - rightHidden + 1}-{sections.length}
               </Typography>
-              <IconButton onClick={handleFastForward} color="primary">
+              <IconButton 
+                onClick={handleFastForward} 
+                color="primary"
+                size="small"
+                title="Go to end"
+              >
                 <FastForwardIcon />
               </IconButton>
             </>
+          ) : (
+            <Box
+              sx={{
+                width: 4,
+                height: 24,
+                bgcolor: 'primary.main',
+                borderRadius: 1,
+                ml: 1,
+              }}
+            />
           )}
         </Box>
       </Box>
@@ -420,10 +482,52 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
   const currentSection = sections[activeStep];
 
   return (
-    <Container maxWidth={false} sx={{ py: 4 }}>
-      {renderStepper()}
-      <Box sx={{ display: 'flex', gap: 3 }}>
-        <Box sx={{ flexGrow: 1, maxWidth: isMobile ? '100%' : `calc(100% - ${DRAWER_WIDTH}px)` }}>
+    <Container 
+      maxWidth={false} 
+      sx={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        pt: `${theme.spacing(8)}`,
+      }}
+    >
+      <Box 
+        sx={{ 
+          position: 'fixed',
+          top: theme.spacing(8),
+          left: 0,
+          right: 0,
+          zIndex: theme.zIndex.appBar - 1,
+          backgroundColor: 'background.default',
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Container maxWidth={false}>
+          <Box sx={{ py: 2 }}>
+            {renderStepper()}
+          </Box>
+        </Container>
+      </Box>
+
+      <Box sx={{ height: theme.spacing(8) }} />
+      
+      <Box 
+        sx={{ 
+          display: 'flex',
+          gap: 3,
+          flexGrow: 1,
+          px: 3,
+        }}
+      >
+        <Box 
+          sx={{ 
+            flexGrow: 1,
+            maxWidth: isMobile ? '100%' : `calc(100% - ${DRAWER_WIDTH}px)`,
+            overflowY: 'auto',
+            height: `calc(100vh - ${theme.spacing(24)})`,
+          }}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeStep}
@@ -476,7 +580,7 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                 />
               </Paper>
 
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, mb: 4 }}>
                 <Button
                   disabled={activeStep === 0}
                   onClick={() => handleStepClick(activeStep - 1)}
@@ -503,9 +607,9 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
               width: DRAWER_WIDTH,
               flexShrink: 0,
               borderLeft: `1px solid ${theme.palette.divider}`,
-              height: `calc(100vh - ${theme.spacing(20)})`,
+              height: `calc(100vh - ${theme.spacing(24)})`,
               position: 'sticky',
-              top: theme.spacing(20),
+              top: theme.spacing(16),
               overflowY: 'auto',
             }}
           >
