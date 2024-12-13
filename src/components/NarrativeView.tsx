@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   Box,
   Stepper,
@@ -26,6 +26,8 @@ import {
   Warning as WarningIcon,
   RadioButtonUnchecked as UncheckedIcon,
   Article as ArticleIcon,
+  DoubleArrow as DoubleArrowIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NarrativeSection, ValidationStatus, NarrativeModule, ModuleCompletionStatus } from '../types/narrative';
@@ -44,6 +46,42 @@ interface NarrativeViewProps {
 
 const DRAWER_WIDTH = 400;
 
+// Simple navigation buttons component
+const NavigationButtons: React.FC<{
+  activeStep: number;
+  totalSteps: number;
+  onPrevious: () => void;
+  onNext: () => void;
+  nextButtonRef: React.RefObject<HTMLButtonElement>;
+}> = ({ activeStep, totalSteps, onPrevious, onNext, nextButtonRef }) => (
+  <Box sx={{ 
+    display: 'flex', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    mt: 3,
+    mb: 2,
+  }}>
+    <Button
+      disabled={activeStep === 0}
+      onClick={onPrevious}
+      variant="outlined"
+      sx={{ minWidth: 100 }}
+    >
+      Previous
+    </Button>
+
+    <Button
+      ref={nextButtonRef}
+      disabled={activeStep === totalSteps - 1}
+      onClick={onNext}
+      variant="contained"
+      sx={{ minWidth: 100 }}
+    >
+      Next
+    </Button>
+  </Box>
+);
+
 export const NarrativeView: React.FC<NarrativeViewProps> = ({
   sections,
   values,
@@ -55,9 +93,8 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [activeStep, setActiveStep] = useState(0);
-  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0]));
-  const [isModulePreviewOpen, setIsModulePreviewOpen] = useState(false);
-
+  const currentSection = sections[activeStep];
+  
   // Group sections by module
   const modules = useMemo(() => {
     const moduleMap = new Map<string, NarrativeModule>();
@@ -87,6 +124,66 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
     }
     return modules[modules.length - 1];
   }, [modules]);
+
+  const currentModule = useMemo(() => getModuleForSection(activeStep), [activeStep, getModuleForSection]);
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0]));
+  const [isModulePreviewOpen, setIsModulePreviewOpen] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+
+  const scrollToBottom = () => {
+    if (formRef.current) {
+      const formElement = formRef.current;
+      formElement.scrollTo({
+        top: formElement.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Update the scroll hint visibility check
+  useEffect(() => {
+    const checkVisibility = () => {
+      if (formRef.current && nextButtonRef.current) {
+        const formRect = formRef.current.getBoundingClientRect();
+        const nextButtonRect = nextButtonRef.current.getBoundingClientRect();
+        
+        // Check if the next button is below the visible area of the form
+        const isNextButtonHidden = nextButtonRect.bottom > (formRect.top + formRef.current.clientHeight);
+        
+        // Only show scroll hint if next button exists and is hidden
+        setShowScrollHint(isNextButtonHidden && activeStep < sections.length - 1);
+      } else {
+        setShowScrollHint(false);
+      }
+    };
+
+    const formElement = formRef.current;
+    if (formElement) {
+      // Check visibility on scroll
+      formElement.addEventListener('scroll', checkVisibility);
+      // Check visibility on window resize
+      window.addEventListener('resize', checkVisibility);
+      // Check visibility on content changes
+      const observer = new MutationObserver(checkVisibility);
+      observer.observe(formElement, { 
+        childList: true, 
+        subtree: true, 
+        attributes: true 
+      });
+      
+      // Initial check
+      // Use setTimeout to ensure the check happens after the content is rendered
+      setTimeout(checkVisibility, 0);
+
+      return () => {
+        formElement.removeEventListener('scroll', checkVisibility);
+        window.removeEventListener('resize', checkVisibility);
+        observer.disconnect();
+      };
+    }
+  }, [activeStep, sections.length, currentSection?.id]); // Added currentSection?.id to dependencies
 
   const getSectionCompletionStatus = useCallback((section: NarrativeSection) => {
     const sectionFields = section.fields;
@@ -123,15 +220,22 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
     
     const hasMissingRequired = completionStatus.required > completionStatus.completedRequired;
 
-    // Only show warning if it's not the first step or if we've visited other steps
-    const showWarning = hasBeenVisited && (hasErrors || hasMissingRequired) && (stepIndex !== 0 || visitedSteps.size > 1);
+    // Only show warning if:
+    // 1. The section has been visited
+    // 2. It has errors or missing required fields
+    // 3. It's not the current active step
+    // 4. Either it's not the first step, or we've visited other steps
+    const showWarning = hasBeenVisited && 
+      (hasErrors || hasMissingRequired) && 
+      stepIndex !== activeStep &&
+      (stepIndex !== 0 || visitedSteps.size > 1);
 
     return {
       isComplete: !hasErrors && !hasMissingRequired && completionStatus.completed === completionStatus.total,
       hasWarning: showWarning,
       completionStatus,
     };
-  }, [sections, visitedSteps, validation, getSectionCompletionStatus]);
+  }, [sections, visitedSteps, validation, getSectionCompletionStatus, activeStep]);
 
   const getModuleCompletionStatus = useCallback((module: NarrativeModule): ModuleCompletionStatus => {
     let total = 0;
@@ -262,100 +366,74 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
     );
   };
 
-  const renderNavigationPanel = () => {
-    const currentModule = getModuleForSection(activeStep);
-    return (
-      <Box
-        sx={{
-          height: '100%',
-          overflow: 'auto',
-          backgroundColor: theme.palette.background.default,
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6" sx={{ color: 'text.primary' }}>
-              Module Navigator
-            </Typography>
-            <Tooltip title="Read Current Module">
-              <IconButton
-                onClick={() => setIsModulePreviewOpen(true)}
-                size="small"
-                color="primary"
-              >
-                <ArticleIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Typography variant="body2" color="text.secondary">
-            {currentModule.name}
-          </Typography>
-        </Box>
-        <List component="nav" sx={{ px: 2, py: 1, flex: 1 }}>
-          {currentModule.sections.map((section) => {
-            const absoluteIndex = sections.findIndex(s => s.id === section.id);
-            const { isComplete, hasWarning } = getStepStatus(absoluteIndex);
-            return (
-              <ListItem
-                key={section.id}
-                button
-                selected={absoluteIndex === activeStep}
-                onClick={() => handleStepClick(absoluteIndex)}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.main',
-                    color: 'primary.contrastText',
-                    '&:hover': {
-                      backgroundColor: 'primary.dark',
-                    },
-                  },
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  {isComplete ? (
-                    <CheckCircleIcon fontSize="small" color="success" />
-                  ) : hasWarning ? (
-                    <WarningIcon fontSize="small" color="warning" />
-                  ) : (
-                    <UncheckedIcon fontSize="small" color="action" />
-                  )}
-                </ListItemIcon>
-                <ListItemText
-                  primary={section.title}
-                  primaryTypographyProps={{
-                    variant: 'body2',
-                    sx: { fontWeight: absoluteIndex === activeStep ? 600 : 400 },
-                  }}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
-      </Box>
-    );
-  };
-
   const renderStepper = () => (
     <Stepper 
       activeStep={activeStep} 
       alternativeLabel
       sx={{ 
-        mb: 4,
+        mb: 0,
+        width: '100%',
         '& .MuiStepLabel-root': {
           cursor: 'pointer',
+          padding: '4px 8px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        },
+        '& .MuiStepLabel-label': {
+          mt: 1,
+          fontSize: '0.75rem',
+          lineHeight: 1.2,
+          textAlign: 'center',
+          width: '100%',
+          '&.Mui-active': {
+            color: 'primary.main',
+            fontWeight: 600,
+          },
+        },
+        '& .MuiStepConnector-line': {
+          borderColor: 'divider',
+          borderWidth: '1px',
+        },
+        '& .MuiStepConnector-root': {
+          top: '28px',
+          left: 'calc(-50% + 20px)',
+          right: 'calc(50% + 20px)',
+        },
+        '& .MuiStepConnector-root.Mui-active .MuiStepConnector-line': {
+          borderColor: 'primary.main',
+        },
+        '& .MuiStepConnector-root.Mui-completed .MuiStepConnector-line': {
+          borderColor: 'success.main',
+        },
+        '& .MuiStep-root': {
+          flex: 1,
+          padding: '0 12px',
+          minWidth: 0,
+        },
+        '& .MuiStepLabel-iconContainer': {
+          py: 0,
+          px: 0,
+          marginRight: 0,
+        },
+        '& .MuiSvgIcon-root': {
+          fontSize: '1.25rem',
+        },
+        '& .MuiStepIcon-text': {
+          fill: '#fff',
         },
       }}
     >
       {modules.map((module) => {
         const moduleStatus = getModuleCompletionStatus(module);
+        const currentModule = getModuleForSection(activeStep);
+        const isActiveModule = currentModule.id === module.id;
+
         return (
           <Step 
             key={module.id}
             completed={moduleStatus.isComplete}
+            active={isActiveModule}
           >
             <StepLabel
               onClick={() => {
@@ -376,6 +454,7 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                   {...props}
                   hasWarning={moduleStatus.hasWarnings}
                   isComplete={moduleStatus.isComplete}
+                  isActive={isActiveModule}
                   completionStatus={{
                     total: moduleStatus.total,
                     completed: moduleStatus.completed,
@@ -386,16 +465,49 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                 />
               )}
             >
-              {module.name}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                alignItems: 'center',
+                mt: 0.5,
+                width: '100%',
+                ...(isActiveModule && {
+                  transform: 'scale(1.05)',
+                  transition: 'transform 0.2s ease-in-out',
+                }),
+              }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: isActiveModule ? 'primary.main' : 'text.secondary',
+                    fontWeight: isActiveModule ? 600 : 400,
+                    fontSize: '0.75rem',
+                    transition: 'all 0.2s ease-in-out',
+                    textAlign: 'center',
+                    width: '100%',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {module.name}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: isActiveModule ? 'primary.main' : 'text.secondary',
+                    opacity: isActiveModule ? 1 : 0.7,
+                    mt: 0.5,
+                    fontSize: '0.7rem',
+                  }}
+                >
+                  {moduleStatus.completed}/{moduleStatus.total} completed
+                </Typography>
+              </Box>
             </StepLabel>
           </Step>
         );
       })}
     </Stepper>
   );
-
-  const currentSection = sections[activeStep];
-  const currentModule = getModuleForSection(activeStep);
 
   const renderFullDocumentPreview = () => (
     <Modal
@@ -530,50 +642,56 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
   );
 
   return (
-    <Container 
-      maxWidth={false} 
-      sx={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        pt: `${theme.spacing(8)}`,
-      }}
-    >
-      <Box 
-        sx={{ 
-          position: 'fixed',
-          top: theme.spacing(8),
-          left: 0,
-          right: 0,
-          zIndex: theme.zIndex.appBar - 1,
-          backgroundColor: 'background.default',
-          borderBottom: 1,
-          borderColor: 'divider',
-        }}
-      >
-        <Container maxWidth={false}>
-          <Box sx={{ py: 2 }}>
-            {renderStepper()}
-          </Box>
-        </Container>
+    <Container maxWidth={false} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Stepper */}
+      <Box sx={{ 
+        position: 'sticky',
+        top: 0,
+        backgroundColor: 'background.default',
+        borderBottom: 1,
+        borderColor: 'divider',
+        zIndex: 2,
+        py: 0.25,
+      }}>
+        {renderStepper()}
       </Box>
 
-      <Box sx={{ height: theme.spacing(8) }} />
-      
-      <Box 
-        sx={{ 
-          display: 'flex',
-          gap: 3,
-          flexGrow: 1,
-          px: 3,
-        }}
-      >
+      {/* Main content */}
+      <Box sx={{ 
+        display: 'flex',
+        gap: 4,
+        flexGrow: 1,
+        px: 3,
+        overflow: 'hidden',
+      }}>
+        {/* Form content */}
         <Box 
+          ref={formRef}
           sx={{ 
             flexGrow: 1,
-            maxWidth: isMobile ? '100%' : `calc(100% - ${DRAWER_WIDTH}px)`,
+            maxWidth: isMobile ? '100%' : `calc(100% - ${DRAWER_WIDTH}px - 24px)`,
             overflowY: 'auto',
-            height: `calc(100vh - ${theme.spacing(24)})`,
+            py: 2,
+            pr: 3,
+            height: 'calc(100vh - 88px)',
+            '& > div': {
+              minHeight: 'min-content',
+              paddingBottom: 'calc(88px + 2rem)',
+            },
+            // Custom scrollbar styling
+            '&::-webkit-scrollbar': {
+              width: '6px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: 'transparent',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: theme.palette.grey[300],
+              borderRadius: '3px',
+              '&:hover': {
+                background: theme.palette.grey[400],
+              },
+            },
           }}
         >
           <AnimatePresence mode="wait">
@@ -584,28 +702,8 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <Paper 
-                elevation={2} 
-                sx={{ 
-                  p: 3, 
-                  mb: 3,
-                  position: 'relative',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: '4px',
-                    background: theme => {
-                      const status = getStepStatus(activeStep);
-                      if (status.isComplete) return theme.palette.success.main;
-                      if (status.hasWarning) return theme.palette.warning.main;
-                      return theme.palette.primary.main;
-                    },
-                  },
-                }}
-              >
+              {/* Form Paper */}
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
                 <Typography variant="overline" color="text.secondary" gutterBottom>
                   {currentModule.name}
                 </Typography>
@@ -631,43 +729,168 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                 />
               </Paper>
 
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, mb: 4 }}>
-                <Button
-                  disabled={activeStep === 0}
-                  onClick={() => handleStepClick(activeStep - 1)}
-                  variant="outlined"
-                >
-                  Previous
-                </Button>
-                <Button
-                  disabled={activeStep === sections.length - 1}
-                  onClick={() => handleStepClick(activeStep + 1)}
-                  variant="contained"
-                >
-                  Next
-                </Button>
-              </Box>
+              {/* Navigation Buttons */}
+              <NavigationButtons
+                activeStep={activeStep}
+                totalSteps={sections.length}
+                onPrevious={() => handleStepClick(activeStep - 1)}
+                onNext={() => handleStepClick(activeStep + 1)}
+                nextButtonRef={nextButtonRef}
+              />
             </motion.div>
           </AnimatePresence>
         </Box>
 
+        {/* Module Navigator */}
         {!isMobile && (
           <Paper
-            elevation={0}
+            elevation={3}
             sx={{
               width: DRAWER_WIDTH,
               flexShrink: 0,
-              borderLeft: `1px solid ${theme.palette.divider}`,
-              height: `calc(100vh - ${theme.spacing(24)})`,
-              position: 'sticky',
-              top: theme.spacing(16),
-              overflowY: 'auto',
+              borderRadius: 2,
+              margin: 2,
+              marginRight: 3,
+              marginLeft: 0,
+              height: 'calc(100vh - 88px - 32px)',
+              backgroundColor: theme.palette.grey[50],
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                borderRadius: 2,
+                boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)',
+                pointerEvents: 'none',
+              }
             }}
           >
-            {renderNavigationPanel()}
+            <Box
+              sx={{
+                height: '100%',
+                overflow: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <Box sx={{ 
+                p: 3,
+                borderBottom: 1,
+                borderColor: 'divider',
+                backgroundColor: 'background.paper',
+                boxShadow: `0 1px 2px ${theme.palette.divider}`,
+              }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  mb: 2 
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <MenuBookIcon color="primary" />
+                    <Typography variant="h6" sx={{ color: 'text.primary' }}>
+                      Module Navigator
+                    </Typography>
+                  </Box>
+                  <Tooltip title="View All Sections in Current Module" placement="left" arrow>
+                    <Button
+                      onClick={() => setIsModulePreviewOpen(true)}
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                      startIcon={<ArticleIcon />}
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'primary.light',
+                        },
+                        transition: 'all 0.2s ease-in-out',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      Preview Module
+                    </Button>
+                  </Tooltip>
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {currentModule.name}
+                </Typography>
+              </Box>
+              <List component="nav" sx={{ px: 2, py: 1, flex: 1 }}>
+                {currentModule.sections.map((section) => {
+                  const absoluteIndex = sections.findIndex(s => s.id === section.id);
+                  const { isComplete, hasWarning } = getStepStatus(absoluteIndex);
+                  return (
+                    <ListItem
+                      key={section.id}
+                      button
+                      selected={absoluteIndex === activeStep}
+                      onClick={() => handleStepClick(absoluteIndex)}
+                      sx={{
+                        borderRadius: 1,
+                        mb: 0.5,
+                        '&.Mui-selected': {
+                          backgroundColor: 'primary.main',
+                          color: 'primary.contrastText',
+                          '&:hover': {
+                            backgroundColor: 'primary.dark',
+                          },
+                        },
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        {isComplete ? (
+                          <CheckCircleIcon fontSize="small" color="success" />
+                        ) : hasWarning ? (
+                          <WarningIcon fontSize="small" color="warning" />
+                        ) : (
+                          <UncheckedIcon fontSize="small" color="action" />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={section.title}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          sx: { fontWeight: absoluteIndex === activeStep ? 600 : 400 },
+                        }}
+                      />
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
           </Paper>
         )}
+
+        {/* Scroll hint */}
+        {showScrollHint && (
+          <IconButton
+            onClick={scrollToBottom}
+            color="primary"
+            sx={{
+              position: 'fixed',
+              right: isMobile ? theme.spacing(4) : `calc(${DRAWER_WIDTH}px + ${theme.spacing(6)})`,
+              bottom: theme.spacing(4),
+              backgroundColor: 'background.paper',
+              boxShadow: theme.shadows[6],
+              zIndex: 1200,
+              '&:hover': {
+                backgroundColor: 'primary.light',
+              },
+              animation: 'bounce 1s infinite',
+              '@keyframes bounce': {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-5px)' },
+              },
+            }}
+          >
+            <DoubleArrowIcon sx={{ transform: 'rotate(90deg)' }} />
+          </IconButton>
+        )}
       </Box>
+
       {renderModulePreview()}
       {renderFullDocumentPreview()}
     </Container>

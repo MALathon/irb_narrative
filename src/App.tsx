@@ -11,12 +11,10 @@ import {
   IconButton,
   Button,
   useMediaQuery,
-  Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Description as DescriptionIcon,
-  ViewList as ViewListIcon,
   Article as ArticleIcon,
 } from '@mui/icons-material';
 import { NarrativeProvider, useNarrative } from './context/NarrativeContext';
@@ -103,10 +101,6 @@ const App: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
 
-  const handleSwitchToForm = () => {
-    console.log('Switching to traditional form view');
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -127,29 +121,35 @@ const App: React.FC = () => {
               borderColor: 'divider',
               backgroundColor: 'background.paper',
               zIndex: (theme) => theme.zIndex.drawer + 1,
+              '& .MuiToolbar-root': {
+                minHeight: '40px !important',
+                padding: '0 16px',
+              },
             }}
           >
-            <Toolbar>
+            <Toolbar variant="dense" disableGutters>
               {isMobile && (
                 <IconButton
                   edge="start"
                   color="inherit"
                   aria-label="menu"
-                  sx={{ mr: 2 }}
+                  size="small"
+                  sx={{ mr: 1 }}
                 >
-                  <MenuIcon />
+                  <MenuIcon fontSize="small" />
                 </IconButton>
               )}
               
               <DescriptionIcon 
                 sx={{ 
-                  mr: 2,
+                  mr: 1,
                   color: 'primary.main',
+                  fontSize: '20px',
                 }} 
               />
               
               <Typography 
-                variant="h6" 
+                variant="subtitle2" 
                 component="div" 
                 sx={{ 
                   flexGrow: 1,
@@ -160,42 +160,43 @@ const App: React.FC = () => {
               </Typography>
 
               <Button
-                startIcon={<ArticleIcon />}
+                startIcon={<ArticleIcon sx={{ fontSize: '18px' }} />}
                 onClick={() => setIsPreviewOpen(true)}
-                sx={{ mr: 2 }}
+                sx={{ 
+                  mr: 1,
+                  py: 0.5,
+                  minHeight: '28px',
+                }}
                 variant="outlined"
                 color="primary"
+                size="small"
               >
-                View Full Document
-              </Button>
-
-              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-
-              <Button
-                startIcon={<ViewListIcon />}
-                onClick={handleSwitchToForm}
-                sx={{ ml: 1 }}
-              >
-                Switch to Form View
+                Preview Full Document
               </Button>
             </Toolbar>
           </AppBar>
 
-          <Toolbar /> {/* Spacer for fixed AppBar */}
-
           <Box
-            component="main"
             sx={{
-              flexGrow: 1,
-              position: 'relative',
-              overflow: 'hidden',
-              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100vh',
+              pt: '40px',
             }}
           >
-            <NarrativeContent 
-              isPreviewOpen={isPreviewOpen} 
-              onPreviewClose={() => setIsPreviewOpen(false)} 
-            />
+            <Box
+              component="main"
+              sx={{
+                flexGrow: 1,
+                height: 'calc(100vh - 40px)',
+                overflow: 'hidden',
+              }}
+            >
+              <NarrativeContent 
+                isPreviewOpen={isPreviewOpen} 
+                onPreviewClose={() => setIsPreviewOpen(false)} 
+              />
+            </Box>
           </Box>
         </Box>
       </NarrativeProvider>

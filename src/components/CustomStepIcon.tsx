@@ -28,8 +28,8 @@ const StepIconRoot = styled('div')<{
   backgroundColor: theme.palette.grey[300],
   zIndex: 1,
   color: '#fff',
-  width: 36,
-  height: 36,
+  width: 40,
+  height: 40,
   display: 'flex',
   borderRadius: '50%',
   justifyContent: 'center',
@@ -37,6 +37,7 @@ const StepIconRoot = styled('div')<{
   transition: 'all 0.2s ease-in-out',
   position: 'relative',
   cursor: 'pointer',
+  margin: '8px',
 
   '&:hover': {
     transform: 'scale(1.1)',
@@ -45,10 +46,11 @@ const StepIconRoot = styled('div')<{
 
   ...(ownerState.active && {
     backgroundColor: theme.palette.primary.main,
-    boxShadow: `0 0 0 2px ${theme.palette.primary.main}`,
+    transform: 'scale(1.2)',
+    boxShadow: `0 0 0 3px ${theme.palette.primary.light}`,
     '&:hover': {
       backgroundColor: theme.palette.primary.dark,
-      transform: 'scale(1.1)',
+      transform: 'scale(1.25)',
     },
   }),
 
@@ -73,7 +75,7 @@ const StepNumber = styled('div')<{
   ownerState: { active?: boolean };
 }>(({ theme, ownerState }) => ({
   fontWeight: 600,
-  fontSize: '0.875rem',
+  fontSize: '1rem',
   color: ownerState.active ? theme.palette.primary.contrastText : theme.palette.grey[700],
 }));
 
@@ -82,11 +84,11 @@ const ProgressIndicator = styled('div')<{
   type: 'total' | 'required';
 }>(({ theme, progress, type }) => ({
   position: 'absolute',
-  bottom: type === 'total' ? -4 : -8,
+  bottom: type === 'total' ? -6 : -12,
   left: '50%',
   transform: 'translateX(-50%)',
-  width: '24px',
-  height: '3px',
+  width: 32,
+  height: 3,
   backgroundColor: theme.palette.grey[200],
   borderRadius: '2px',
   overflow: 'hidden',
