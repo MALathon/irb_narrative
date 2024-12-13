@@ -1,69 +1,33 @@
-export type FieldType = 
-  | 'text' 
-  | 'select' 
-  | 'multiSelect' 
-  | 'date' 
-  | 'dateRange'
-  | 'number' 
-  | 'checkbox'
-  | 'radio'
-  | 'textArea'
-  | 'other';
-
-export interface FieldOption {
-  value: string;
-  label: string;
-  additionalText?: string;
-  triggers?: {
-    showFields?: string[];
-    showSections?: string[];
-    requireFields?: string[];
-  };
-}
-
-export interface ValidationRule {
-  type: 'required' | 'min' | 'max' | 'pattern' | 'custom';
-  value?: any;
-  message: string;
-  customValidator?: (value: any) => boolean;
-}
-
 export interface Field {
   id: string;
-  type: FieldType;
+  type: string;
   label: string;
-  options?: FieldOption[];
-  validation?: ValidationRule[];
   placeholder?: string;
-  helpText?: string;
-  defaultValue?: any;
+  options?: Array<{ value: string; label: string; triggers?: { showFields: string[] } }>;
+  validation?: Array<{
+    type: string;
+    message: string;
+    value?: any;
+    customValidator?: (value: any) => boolean;
+  }>;
   dependsOn?: {
     fieldId: string;
-    value: any;
-    condition?: 'equals' | 'contains' | 'greater' | 'less' | 'not';
+    value?: any;
+    operator?: string;
+    condition?: string;
   };
+  helpText?: string;
   metadata?: {
-    isHIPAAIdentifier?: boolean;
-    isSensitiveData?: boolean;
-    category?: string;
-    subcategory?: string;
-    importance?: 'required' | 'optional';
+    category: string;
+    importance: 'required' | 'recommended' | 'optional';
   };
-}
-
-export interface DynamicContent {
-  condition: {
-    fieldId: string;
-    value: any;
-    operator?: 'equals' | 'contains' | 'in' | 'not' | 'greater' | 'less';
-  };
-  content: string;
-  priority?: number; // For ordering multiple dynamic contents
 }
 
 export interface NarrativeSection {
   id: string;
   title: string;
+  moduleId: string;
+  moduleName: string;
   description?: string;
   template: string;
   fields: Field[];
@@ -82,6 +46,12 @@ export interface NarrativeSection {
     importance: 'required' | 'recommended' | 'optional';
     reviewerNotes?: string;
   };
+}
+
+export interface NarrativeModule {
+  id: string;
+  name: string;
+  sections: NarrativeSection[];
 }
 
 export interface NarrativeSchema {
@@ -111,6 +81,15 @@ export interface NarrativeState {
   };
 }
 
+export interface DynamicContent {
+  condition: {
+    fieldId: string;
+    value: any;
+    operator?: string;
+  };
+  content: string;
+}
+
 export interface DynamicSectionProps {
   section: NarrativeSection;
   values: { [key: string]: any };
@@ -128,4 +107,19 @@ export type ValidationStatus = {
 export interface NarrativeValidation {
   validateSection: (section: NarrativeSection, values: NarrativeState) => ValidationStatus;
   validateAll: (schema: NarrativeSchema, values: NarrativeState) => ValidationStatus;
+}
+
+export interface ModuleCompletionStatus {
+  total: number;
+  completed: number;
+  required: number;
+  completedRequired: number;
+  hasWarnings: boolean;
+  isComplete: boolean;
+}
+
+export interface FieldOption {
+  value: string;
+  label: string;
+  additionalText?: string;
 } 

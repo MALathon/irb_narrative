@@ -2,102 +2,85 @@ import { NarrativeSchema } from '../types/narrative';
 
 export const irbNarrativeSchema: NarrativeSchema = {
   sections: [
+    // Module 1: Study Foundation & Context
     {
-      id: 'introduction',
-      title: 'Study Introduction and Rationale',
-      description: 'Explain why this study is necessary and provide supporting literature.',
-      template: 'This research project, titled "{projectTitle}", aims to address an important gap in our understanding of {condition}. Based on published literature, including {literatureRefs}, there is a recognized need to explore {researchGap}. By undertaking this investigation, we hope to refine or discover methods in the field of AI/ML that could improve how we identify, predict, or understand this health condition.',
+      id: 'studyRationale',
+      title: 'Study Rationale',
+      moduleId: 'foundation',
+      moduleName: 'Study Foundation & Context',
+      description: 'Help us understand why this research is necessary and what gap it fills.',
+      template: 'This research project aims to address {researchGap} in the field of AI/ML healthcare applications. Based on {literatureRefs}, there is a clear need to explore new methods for {researchObjective}. Our project will specifically focus on {methodologyApproach}, which has shown promise in {priorEvidence}.',
       fields: [
-        {
-          id: 'projectTitle',
-          type: 'text',
-          label: 'Project Title',
-          placeholder: 'Enter project title',
-          validation: [{ type: 'required', message: 'Project title is required' }],
-          metadata: {
-            category: 'basic',
-            importance: 'required',
-          },
-        },
-        {
-          id: 'condition',
-          type: 'text',
-          label: 'Condition of Interest',
-          placeholder: 'Enter condition or disease of interest',
-          validation: [{ type: 'required', message: 'Condition is required' }],
-          metadata: {
-            category: 'basic',
-            importance: 'required',
-          },
-        },
-        {
-          id: 'literatureRefs',
-          type: 'textArea',
-          label: 'Literature References',
-          placeholder: 'Enter key literature references that support your approach',
-          validation: [{ type: 'required', message: 'Literature references are required' }],
-          helpText: 'Include citations that support your data collection methods and analysis approach',
-          metadata: {
-            category: 'basic',
-            importance: 'required',
-          },
-        },
         {
           id: 'researchGap',
           type: 'textArea',
           label: 'Research Gap',
-          placeholder: 'Describe the gap in current knowledge',
+          placeholder: 'What specific gap in current knowledge does your project address?',
           validation: [{ type: 'required', message: 'Research gap description is required' }],
-          metadata: {
-            category: 'basic',
-            importance: 'required',
-          },
+          helpText: 'Describe the current limitation or gap in knowledge that your project will address',
+        },
+        {
+          id: 'literatureRefs',
+          type: 'textArea',
+          label: 'Supporting Literature',
+          placeholder: 'What published literature supports your approach?',
+          validation: [{ type: 'required', message: 'Supporting literature is required' }],
+          helpText: 'Include key citations that support your methods and demonstrate the gap',
+        },
+        {
+          id: 'researchObjective',
+          type: 'textArea',
+          label: 'Research Objective',
+          placeholder: 'What specific objective will your project pursue?',
+          validation: [{ type: 'required', message: 'Research objective is required' }],
+        },
+        {
+          id: 'methodologyApproach',
+          type: 'textArea',
+          label: 'Methodology Approach',
+          placeholder: 'Describe your planned approach',
+          validation: [{ type: 'required', message: 'Methodology approach is required' }],
+        },
+        {
+          id: 'priorEvidence',
+          type: 'textArea',
+          label: 'Prior Evidence',
+          placeholder: 'What evidence suggests this approach will be successful?',
+          validation: [{ type: 'required', message: 'Prior evidence is required' }],
         },
       ],
-      metadata: {
-        category: 'introduction',
-        importance: 'required',
-      },
     },
     {
       id: 'studyPopulation',
       title: 'Study Population',
-      template: 'Our study will focus on {diagnosis} {includeHealthyControls, select: with | without} healthy controls. {healthyControlsText} The study will include participants aged between {minAge} and {maxAge} years.',
+      moduleId: 'foundation',
+      moduleName: 'Study Foundation & Context',
+      description: 'Define who you will be studying and why.',
+      template: 'Our study will focus on patients with {diagnosis}. {includeHealthyControls, select, yes: We will include healthy controls for comparison purposes. {healthyControlJustification} | no: We will not include healthy controls in this study.} The study population will include individuals aged {minAge} to {maxAge} years.',
       fields: [
         {
           id: 'diagnosis',
           type: 'text',
-          label: 'Primary Diagnosis/Disease',
+          label: 'Primary Diagnosis/Condition',
+          placeholder: 'What is the main condition you are studying?',
           validation: [{ type: 'required', message: 'Primary diagnosis is required' }],
-          metadata: {
-            category: 'population',
-            importance: 'required',
-          },
         },
         {
           id: 'includeHealthyControls',
           type: 'radio',
           label: 'Include Healthy Controls?',
           options: [
-            { value: 'yes', label: 'Yes', triggers: { showFields: ['healthyControlsText'] } },
+            { value: 'yes', label: 'Yes' },
             { value: 'no', label: 'No' },
           ],
           validation: [{ type: 'required', message: 'Please specify if healthy controls will be included' }],
-          metadata: {
-            category: 'population',
-            importance: 'required',
-          },
         },
         {
-          id: 'healthyControlsText',
+          id: 'healthyControlJustification',
           type: 'textArea',
-          label: 'Explain Healthy Controls Usage',
+          label: 'Healthy Control Justification',
+          placeholder: 'Why are healthy controls necessary for your study?',
           dependsOn: { fieldId: 'includeHealthyControls', value: 'yes' },
-          placeholder: 'Explain why healthy controls are necessary and how they will be used',
-          metadata: {
-            category: 'population',
-            importance: 'required',
-          },
         },
         {
           id: 'minAge',
@@ -105,12 +88,8 @@ export const irbNarrativeSchema: NarrativeSchema = {
           label: 'Minimum Age',
           validation: [
             { type: 'required', message: 'Minimum age is required' },
-            { type: 'min', value: 0, message: 'Minimum age must be 0 or greater' },
+            { type: 'min', value: 0, message: 'Age must be 0 or greater' },
           ],
-          metadata: {
-            category: 'population',
-            importance: 'required',
-          },
         },
         {
           id: 'maxAge',
@@ -118,180 +97,72 @@ export const irbNarrativeSchema: NarrativeSchema = {
           label: 'Maximum Age',
           validation: [
             { type: 'required', message: 'Maximum age is required' },
-            { type: 'min', value: 0, message: 'Maximum age must be 0 or greater' },
+            { type: 'min', value: 0, message: 'Age must be 0 or greater' },
           ],
-          metadata: {
-            category: 'population',
-            importance: 'required',
-          },
         },
       ],
-      metadata: {
-        category: 'population',
-        importance: 'required',
-      },
     },
+
+    // Module 2: Data & Resources
     {
-      id: 'resources',
-      title: 'Study Resources and Data Access',
-      template: 'To accomplish our aims, we will utilize the following resources: {resourceTypes}. {dataAccessDetails}',
+      id: 'dataAccess',
+      title: 'Data Access & Resources',
+      moduleId: 'data',
+      moduleName: 'Data & Resources',
+      description: 'Specify what resources you need and who will have access.',
+      template: 'This study will utilize the following resources: {resourceTypes}. {otherIrbData, select, yes: This includes data from IRB #{otherIrbNumber}. | no: } Access to the study data will be provided to {mayoAccess} within Mayo Clinic and {nonMayoAccess} outside Mayo Clinic.',
       fields: [
         {
           id: 'resourceTypes',
           type: 'multiSelect',
-          label: 'Resource Types',
+          label: 'Required Resources',
           options: [
-            { value: 'data', label: 'Data (e.g., electronic health records)' },
-            { value: 'video', label: 'Video/Audio recordings' },
+            { value: 'data', label: 'Data (e.g., EHR data)' },
+            { value: 'video_audio', label: 'Video/Audio Recordings' },
             { value: 'specimens', label: 'Specimens' },
             { value: 'images', label: 'Images' },
             { value: 'medical_records', label: 'Medical Records' },
-            { value: 'other_irb', label: 'Data from another IRB' },
           ],
           validation: [{ type: 'required', message: 'At least one resource type is required' }],
         },
         {
-          id: 'otherIrbNumber',
-          type: 'text',
-          label: 'Other IRB Number(s)',
-          dependsOn: { fieldId: 'resourceTypes', value: 'other_irb', condition: 'contains' },
-          placeholder: 'Enter IRB number(s)',
-        },
-        {
-          id: 'dataAccessDetails',
-          type: 'textArea',
-          label: 'Data Access Details',
-          placeholder: 'Describe who will have access to the study data',
-          validation: [{ type: 'required', message: 'Data access details are required' }],
-        },
-      ],
-      dynamicContent: [
-        {
-          condition: { fieldId: 'resourceTypes', value: 'data', operator: 'contains' },
-          content: 'The data will be stored securely in {dataStorage} and accessed by {dataAccess}.',
-        },
-      ],
-    },
-    {
-      id: 'dataIdentifiability',
-      title: 'Data Identifiability and Privacy',
-      template: 'The dataset we will use can be characterized as {identifiabilityLevel}. {identifiabilityDetails}',
-      fields: [
-        {
-          id: 'identifiabilityLevel',
-          type: 'select',
-          label: 'Identifiability Level',
-          options: [
-            { 
-              value: 'synthetic', 
-              label: 'Synthetic dataset',
-              triggers: { showFields: ['syntheticSource', 'syntheticOwner'] }
-            },
-            { 
-              value: 'deidentified', 
-              label: 'Deidentified per HIPAA standards',
-              triggers: { showFields: ['deidentificationResponsible', 'deidentificationMethod'] }
-            },
-            { 
-              value: 'limited', 
-              label: 'Limited dataset',
-              triggers: { showFields: ['limitedDatasetElements'] }
-            },
-            { 
-              value: 'coded', 
-              label: 'Coded data',
-              triggers: { showFields: ['codeKeyMaintainer'] }
-            },
-            { value: 'identifiable', label: 'Fully identifiable' },
-          ],
-          validation: [{ type: 'required', message: 'Identifiability level is required' }],
-        },
-        {
-          id: 'syntheticSource',
-          type: 'textArea',
-          label: 'Original Dataset Description',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'synthetic' },
-        },
-        {
-          id: 'syntheticOwner',
-          type: 'text',
-          label: 'Dataset Owner',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'synthetic' },
-        },
-        {
-          id: 'deidentificationResponsible',
-          type: 'text',
-          label: 'Responsible for Deidentification',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'deidentified' },
-        },
-        {
-          id: 'deidentificationMethod',
-          type: 'textArea',
-          label: 'Deidentification Method',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'deidentified' },
-        },
-        {
-          id: 'limitedDatasetElements',
-          type: 'multiSelect',
-          label: 'Limited Dataset Elements',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'limited' },
-          options: [
-            { value: 'dates', label: 'Dates' },
-            { value: 'zip', label: 'ZIP Codes' },
-            { value: 'age_over_89', label: 'Ages over 89' },
-          ],
-        },
-        {
-          id: 'codeKeyMaintainer',
-          type: 'text',
-          label: 'Code Key Maintainer',
-          dependsOn: { fieldId: 'identifiabilityLevel', value: 'coded' },
-        },
-      ],
-    },
-    {
-      id: 'sensitiveData',
-      title: 'Sensitive Data Collection',
-      template: '{hasSensitiveData, select: This study will | This study will not} collect sensitive data. {sensitiveDataDetails}',
-      fields: [
-        {
-          id: 'hasSensitiveData',
+          id: 'otherIrbData',
           type: 'radio',
-          label: 'Will you collect sensitive data?',
+          label: 'Using Data from Another IRB?',
           options: [
             { value: 'yes', label: 'Yes' },
             { value: 'no', label: 'No' },
           ],
-          validation: [{ type: 'required', message: 'Please specify if sensitive data will be collected' }],
         },
         {
-          id: 'sensitiveDataTypes',
-          type: 'multiSelect',
-          label: 'Types of Sensitive Data',
-          dependsOn: { fieldId: 'hasSensitiveData', value: 'yes' },
-          options: [
-            { value: 'psychiatric', label: 'Psychiatric Information' },
-            { value: 'substance', label: 'Substance Use Disorder' },
-            { value: 'hiv', label: 'HIV Status' },
-            { value: 'genetic', label: 'Genetic Information' },
-            { value: 'abuse', label: 'Abuse History' },
-            { value: 'illegal', label: 'Illegal Activities' },
-            { value: 'other', label: 'Other Sensitive Data' },
-          ],
+          id: 'otherIrbNumber',
+          type: 'text',
+          label: 'Other IRB Number',
+          dependsOn: { fieldId: 'otherIrbData', value: 'yes' },
         },
         {
-          id: 'sensitiveDataDetails',
+          id: 'mayoAccess',
           type: 'textArea',
-          label: 'Sensitive Data Details',
-          dependsOn: { fieldId: 'hasSensitiveData', value: 'yes' },
-          placeholder: 'Describe the sensitive data and additional safeguards',
+          label: 'Mayo Clinic Access',
+          placeholder: 'Who within Mayo Clinic will have access to the study data?',
+          validation: [{ type: 'required', message: 'Mayo access details are required' }],
+        },
+        {
+          id: 'nonMayoAccess',
+          type: 'textArea',
+          label: 'Non-Mayo Access',
+          placeholder: 'Who outside Mayo Clinic will have access to the study data?',
+          validation: [{ type: 'required', message: 'Non-Mayo access details are required' }],
         },
       ],
     },
     {
       id: 'dataTimeframe',
       title: 'Data Collection Timeframe',
-      template: 'The data used in this study was collected between {startDate} and {endDate} for baseline analysis{hasFollowup, select:, with follow-up data through {followupDate} | }.',
+      moduleId: 'data',
+      moduleName: 'Data & Resources',
+      description: 'Define when the data was or will be collected.',
+      template: 'The data used in this study was collected between {startDate} and {endDate} for baseline analysis{hasFollowup, select, yes:, with follow-up data through {followupDate} | no:}.',
       fields: [
         {
           id: 'startDate',
@@ -324,8 +195,11 @@ export const irbNarrativeSchema: NarrativeSchema = {
     },
     {
       id: 'sampleSize',
-      title: 'Sample Size and Statistical Power',
-      template: 'To draw meaningful conclusions, we require {totalRecords} total records, with {mayoRecords} sourced from Mayo Clinic. {powerJustification}',
+      title: 'Sample Size Requirements',
+      moduleId: 'data',
+      moduleName: 'Data & Resources',
+      description: 'Specify how many records you need and why.',
+      template: 'To draw meaningful conclusions, we require {totalRecords} total records, with {mayoRecords} sourced from Mayo Clinic. This sample size was determined based on {powerJustification}.',
       fields: [
         {
           id: 'totalRecords',
@@ -354,133 +228,210 @@ export const irbNarrativeSchema: NarrativeSchema = {
         },
       ],
     },
+
+    // Module 3: Privacy & Compliance
     {
-      id: 'algorithmicFairness',
-      title: 'Algorithmic Fairness and Harm Prevention',
-      template: 'Our algorithm will ensure fairness through {fairnessMethods}. The primary beneficiaries of this technology will be {beneficiaries}, and the findings will benefit the source population by {populationBenefit}.',
+      id: 'dataPrivacy',
+      title: 'Data Privacy & Security',
+      moduleId: 'privacy',
+      moduleName: 'Privacy & Compliance',
+      description: 'Specify how data privacy and security will be maintained.',
+      template: 'The data used in this study will be {identifiabilityLevel}. {identifiabilityDetails} Data will be securely stored in {storageLocation} and transferred using {transferMethod}.',
       fields: [
         {
-          id: 'fairnessMethods',
-          type: 'multiSelect',
-          label: 'Fairness Methods',
+          id: 'identifiabilityLevel',
+          type: 'select',
+          label: 'Data Identifiability Level',
           options: [
-            { value: 'balanced_training', label: 'Balanced Training Sets' },
-            { value: 'bias_audit', label: 'Regular Bias Audits' },
-            { value: 'stratified_sampling', label: 'Stratified Sampling' },
-            { value: 'demographic_parity', label: 'Demographic Parity' },
-            { value: 'equal_opportunity', label: 'Equal Opportunity' },
-            { value: 'other', label: 'Other Methods' },
+            { value: 'synthetic', label: 'Synthetic dataset' },
+            { value: 'deidentified', label: 'Deidentified per HIPAA standards' },
+            { value: 'limited', label: 'Limited dataset' },
+            { value: 'coded', label: 'Coded with key/crosswalk' },
+            { value: 'identifiable', label: 'Fully identifiable' },
           ],
-          validation: [{ type: 'required', message: 'At least one fairness method is required' }],
+          validation: [{ type: 'required', message: 'Identifiability level is required' }],
         },
         {
-          id: 'otherFairnessMethod',
+          id: 'identifiabilityDetails',
           type: 'textArea',
-          label: 'Other Fairness Method Details',
-          dependsOn: { fieldId: 'fairnessMethods', value: 'other', condition: 'contains' },
+          label: 'Identifiability Details',
+          placeholder: 'Provide details about data identifiability and protection measures',
+          validation: [{ type: 'required', message: 'Identifiability details are required' }],
         },
+        {
+          id: 'storageLocation',
+          type: 'text',
+          label: 'Storage Location',
+          placeholder: 'Where will the data be stored?',
+          validation: [{ type: 'required', message: 'Storage location is required' }],
+        },
+        {
+          id: 'transferMethod',
+          type: 'text',
+          label: 'Transfer Method',
+          placeholder: 'How will data be securely transferred?',
+          validation: [{ type: 'required', message: 'Transfer method is required' }],
+        },
+      ],
+    },
+    {
+      id: 'sensitiveData',
+      title: 'Sensitive Data Handling',
+      moduleId: 'privacy',
+      moduleName: 'Privacy & Compliance',
+      description: 'Identify any sensitive data and its protection measures.',
+      template: '{hasSensitiveData, select, yes: This study includes sensitive data types: {sensitiveDataTypes}. {sensitiveDataProtections} | no: This study does not include any sensitive data types.}',
+      fields: [
+        {
+          id: 'hasSensitiveData',
+          type: 'radio',
+          label: 'Does this study include sensitive data?',
+          options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+          ],
+          validation: [{ type: 'required', message: 'Please indicate if sensitive data is included' }],
+        },
+        {
+          id: 'sensitiveDataTypes',
+          type: 'multiSelect',
+          label: 'Sensitive Data Types',
+          options: [
+            { value: 'psychiatric', label: 'Psychiatric Information' },
+            { value: 'substance', label: 'Substance Use' },
+            { value: 'hiv', label: 'HIV Status' },
+            { value: 'genetic', label: 'Genetic Information' },
+            { value: 'abuse', label: 'Abuse History' },
+            { value: 'other', label: 'Other Sensitive Information' },
+          ],
+          dependsOn: { fieldId: 'hasSensitiveData', value: 'yes' },
+        },
+        {
+          id: 'sensitiveDataProtections',
+          type: 'textArea',
+          label: 'Protection Measures',
+          placeholder: 'Describe additional protections for sensitive data',
+          dependsOn: { fieldId: 'hasSensitiveData', value: 'yes' },
+        },
+      ],
+    },
+    {
+      id: 'vendorPrivacy',
+      title: 'Third-Party & Vendor Privacy',
+      moduleId: 'privacy',
+      moduleName: 'Privacy & Compliance',
+      description: 'Specify how privacy will be maintained with external tools or vendors.',
+      template: '{usesExternalTools, select, yes: This study will utilize external tools/vendors: {externalTools}. Privacy will be maintained through {privacyMeasures}. | no: This study will not utilize any external tools or vendors.}',
+      fields: [
+        {
+          id: 'usesExternalTools',
+          type: 'radio',
+          label: 'Will you use external tools or vendors?',
+          options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+          ],
+          validation: [{ type: 'required', message: 'Please specify if external tools will be used' }],
+        },
+        {
+          id: 'externalTools',
+          type: 'textArea',
+          label: 'External Tools/Vendors',
+          placeholder: 'List the external tools or vendors you will use',
+          dependsOn: { fieldId: 'usesExternalTools', value: 'yes' },
+        },
+        {
+          id: 'privacyMeasures',
+          type: 'textArea',
+          label: 'Privacy Measures',
+          placeholder: 'Describe how privacy will be maintained with external tools',
+          dependsOn: { fieldId: 'usesExternalTools', value: 'yes' },
+        },
+      ],
+    },
+
+    // Module 4: Impact & Future Considerations
+    {
+      id: 'fairnessAndImpact',
+      title: 'Fairness & Impact Assessment',
+      moduleId: 'impact',
+      moduleName: 'Impact & Future Considerations',
+      description: 'Evaluate the fairness and impact of your research.',
+      template: 'This research will benefit {beneficiaries} through {benefits}. The findings will impact the source populations by {populationImpact}. To ensure algorithmic fairness, we will implement {fairnessMeasures}.',
+      fields: [
         {
           id: 'beneficiaries',
           type: 'textArea',
-          label: 'Technology Beneficiaries',
-          placeholder: 'Describe who will benefit from this technology and why',
-          validation: [{ type: 'required', message: 'Beneficiaries description is required' }],
+          label: 'Who will benefit?',
+          placeholder: 'Describe who will directly benefit from this technology',
+          validation: [{ type: 'required', message: 'Beneficiaries must be specified' }],
         },
         {
-          id: 'populationBenefit',
+          id: 'benefits',
           type: 'textArea',
-          label: 'Population Benefit',
-          placeholder: 'Explain how the source population will benefit',
-          validation: [{ type: 'required', message: 'Population benefit explanation is required' }],
+          label: 'Expected Benefits',
+          placeholder: 'Describe the expected benefits',
+          validation: [{ type: 'required', message: 'Benefits must be specified' }],
+        },
+        {
+          id: 'populationImpact',
+          type: 'textArea',
+          label: 'Population Impact',
+          placeholder: 'How will findings benefit source populations?',
+          validation: [{ type: 'required', message: 'Population impact must be specified' }],
+        },
+        {
+          id: 'fairnessMeasures',
+          type: 'textArea',
+          label: 'Fairness Measures',
+          placeholder: 'How will you ensure algorithmic fairness?',
+          validation: [{ type: 'required', message: 'Fairness measures must be specified' }],
         },
       ],
     },
     {
-      id: 'phase1Limitations',
-      title: 'Phase 1 Limitations and Compliance',
-      template: 'This research is conducted under Phase 1 limitations, which means: {limitations}',
+      id: 'futureUse',
+      title: 'Future Use & Limitations',
+      moduleId: 'impact',
+      moduleName: 'Impact & Future Considerations',
+      description: 'Specify future plans and current limitations.',
+      template: '{plansFutureUse, select, yes: We plan to use this study\'s data for future research: {futureUseDetails} | no: We do not plan to use this study\'s data for future research.} This study adheres to Phase 1 limitations: {phase1Compliance}.',
       fields: [
         {
-          id: 'limitations',
-          type: 'checkbox',
+          id: 'plansFutureUse',
+          type: 'radio',
+          label: 'Plans for Future Use',
+          options: [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+          ],
+          validation: [{ type: 'required', message: 'Future use plans must be specified' }],
+        },
+        {
+          id: 'futureUseDetails',
+          type: 'textArea',
+          label: 'Future Use Details',
+          placeholder: 'Describe planned future uses',
+          dependsOn: { fieldId: 'plansFutureUse', value: 'yes' },
+        },
+        {
+          id: 'phase1Compliance',
+          type: 'multiSelect',
           label: 'Phase 1 Compliance',
           options: [
-            { 
-              value: 'secondary_only', 
-              label: 'Limited to review of medical records/secondary data'
-            },
-            { 
-              value: 'no_epic', 
-              label: 'Output will not enter live medical environments (e.g., Epic)'
-            },
-            { 
-              value: 'no_deployment', 
-              label: 'Algorithm will not be deployed in healthcare systems'
-            },
-            { 
-              value: 'no_provider_exposure', 
-              label: 'Healthcare providers will not see output before patient care'
-            },
-            { 
-              value: 'ideation_only', 
-              label: 'Limited to ideation, not individual conclusions'
-            },
+            { value: 'records_only', label: 'Limited to records review' },
+            { value: 'no_epic', label: 'No live medical environment integration' },
+            { value: 'no_deployment', label: 'No algorithm deployment' },
+            { value: 'no_provider_exposure', label: 'No provider exposure to output' },
+            { value: 'ideation_only', label: 'Limited to ideation phase' },
           ],
-          validation: [
-            { 
-              type: 'custom', 
-              message: 'All Phase 1 limitations must be acknowledged',
-              customValidator: (value: string[]) => value.length === 5
-            }
-          ],
-        },
-      ],
-    },
-    {
-      id: 'hipaaIdentifiers',
-      title: 'HIPAA Identifiers',
-      template: 'This study will collect the following HIPAA identifiers: {hipaaIdentifiers}. {identifierJustification}',
-      fields: [
-        {
-          id: 'hipaaIdentifiers',
-          type: 'multiSelect',
-          label: 'HIPAA Identifiers',
-          options: [
-            { value: 'names', label: 'Names' },
-            { value: 'dates', label: 'Dates' },
-            { value: 'mrn', label: 'Medical Record Numbers' },
-            { value: 'device_ids', label: 'Device Identifiers' },
-            { value: 'email', label: 'Email Addresses' },
-            { value: 'phone', label: 'Phone Numbers' },
-            { value: 'address', label: 'Geographic Data' },
-            { value: 'ssn', label: 'Social Security Numbers' },
-            { value: 'other', label: 'Other Identifiers' },
-            { value: 'none', label: 'No HIPAA Identifiers' },
-          ],
-          validation: [{ type: 'required', message: 'HIPAA identifier selection is required' }],
-        },
-        {
-          id: 'otherIdentifiers',
-          type: 'textArea',
-          label: 'Other Identifier Details',
-          dependsOn: { fieldId: 'hipaaIdentifiers', value: 'other', condition: 'contains' },
-        },
-        {
-          id: 'identifierJustification',
-          type: 'textArea',
-          label: 'Identifier Usage Justification',
-          dependsOn: { 
-            fieldId: 'hipaaIdentifiers', 
-            value: 'none', 
-            condition: 'not' 
-          },
-          placeholder: 'Explain why these identifiers are necessary',
+          validation: [{ type: 'required', message: 'Phase 1 compliance must be specified' }],
         },
       ],
     },
   ],
   metadata: {
-    version: '1.0.0',
+    version: '2.0.0',
     lastUpdated: new Date().toISOString(),
     institution: 'Mayo Clinic',
     type: 'AI/ML',

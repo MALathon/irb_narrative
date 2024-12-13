@@ -2,16 +2,20 @@ import React from 'react';
 import { Warning as WarningIcon, Check as CheckIcon } from '@mui/icons-material';
 import { StepIconProps, styled, Tooltip, Box } from '@mui/material';
 
+interface CompletionStatus {
+  total: number;
+  completed: number;
+  required: number;
+  completedRequired: number;
+}
+
 interface CustomStepIconProps extends StepIconProps {
   hasWarning?: boolean;
   isComplete?: boolean;
   isActive?: boolean;
   sectionTitle?: string;
-  completionStatus?: {
-    total: number;
-    completed: number;
-    required: number;
-  };
+  moduleName?: string;
+  completionStatus?: CompletionStatus;
 }
 
 const StepIconRoot = styled('div')<{
@@ -75,9 +79,10 @@ const StepNumber = styled('div')<{
 
 const ProgressIndicator = styled('div')<{
   progress: number;
-}>(({ theme, progress }) => ({
+  type: 'total' | 'required';
+}>(({ theme, progress, type }) => ({
   position: 'absolute',
-  bottom: -4,
+  bottom: type === 'total' ? -4 : -8,
   left: '50%',
   transform: 'translateX(-50%)',
   width: '24px',
@@ -92,7 +97,9 @@ const ProgressIndicator = styled('div')<{
     left: 0,
     width: `${progress}%`,
     height: '100%',
-    backgroundColor: theme.palette.primary.main,
+    backgroundColor: type === 'total' 
+      ? theme.palette.primary.main 
+      : theme.palette.secondary.main,
     transition: 'width 0.3s ease-in-out',
   },
 }));
@@ -103,29 +110,71 @@ export const CustomStepIcon: React.FC<CustomStepIconProps> = (props) => {
     hasWarning, 
     icon, 
     sectionTitle,
+    moduleName,
     completionStatus,
     isActive,
   } = props;
 
   const getTooltipContent = () => {
+    if (!completionStatus) return sectionTitle;
+
+    const requiredProgress = completionStatus.required > 0
+      ? Math.round((completionStatus.completedRequired / completionStatus.required) * 100)
+      : 100;
+    const totalProgress = Math.round((completionStatus.completed / completionStatus.total) * 100);
+
+    let status = '';
     if (completed) {
-      return `${sectionTitle} - Complete`;
+      status = 'Complete';
+    } else if (hasWarning) {
+      status = `Incomplete (${completionStatus.completedRequired}/${completionStatus.required} required fields)`;
+    } else if (isActive) {
+      status = 'Current section';
     }
-    if (hasWarning) {
-      return `${sectionTitle} - Incomplete (${completionStatus?.completed}/${completionStatus?.required} required fields)`;
-    }
-    if (isActive) {
-      return `${sectionTitle} - Current section`;
-    }
-    return `Click to go to ${sectionTitle}`;
+
+    return (
+      <Box sx={{ p: 1 }}>
+        <Box sx={{ fontWeight: 600, mb: 0.5 }}>{sectionTitle}</Box>
+        <Box sx={{ color: 'text.secondary', fontSize: '0.75rem', mb: 0.5 }}>
+          {moduleName}
+        </Box>
+        <Box sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+          {status}
+          <br />
+          Required: {requiredProgress}% ({completionStatus.completedRequired}/{completionStatus.required})
+          <br />
+          Total: {totalProgress}% ({completionStatus.completed}/{completionStatus.total})
+        </Box>
+      </Box>
+    );
   };
 
-  const progress = completionStatus 
+  const totalProgress = completionStatus 
     ? (completionStatus.completed / completionStatus.total) * 100
     : 0;
 
+  const requiredProgress = completionStatus && completionStatus.required > 0
+    ? (completionStatus.completedRequired / completionStatus.required) * 100
+    : 100;
+
   return (
-    <Tooltip title={getTooltipContent()} arrow placement="top">
+    <Tooltip 
+      title={getTooltipContent()} 
+      arrow 
+      placement="top"
+      componentsProps={{
+        tooltip: {
+          sx: {
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            boxShadow: 4,
+            '& .MuiTooltip-arrow': {
+              color: 'background.paper',
+            },
+          },
+        },
+      }}
+    >
       <Box>
         <StepIconRoot ownerState={{ active: isActive, completed, hasWarning }}>
           {completed ? (
@@ -135,7 +184,8 @@ export const CustomStepIcon: React.FC<CustomStepIconProps> = (props) => {
           ) : (
             <StepNumber ownerState={{ active: isActive }}>{icon}</StepNumber>
           )}
-          <ProgressIndicator progress={progress} />
+          <ProgressIndicator progress={totalProgress} type="total" />
+          <ProgressIndicator progress={requiredProgress} type="required" />
         </StepIconRoot>
       </Box>
     </Tooltip>

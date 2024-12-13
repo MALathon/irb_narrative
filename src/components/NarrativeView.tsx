@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Stepper,
@@ -13,16 +13,22 @@ import {
   IconButton,
   Modal,
   Fade,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Tooltip,
 } from '@mui/material';
 import {
   Close as CloseIcon,
-  FastForward as FastForwardIcon,
-  FastRewind as FastRewindIcon,
-  KeyboardArrowLeft,
-  KeyboardArrowRight,
+  CheckCircle as CheckCircleIcon,
+  Warning as WarningIcon,
+  RadioButtonUnchecked as UncheckedIcon,
+  Article as ArticleIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { NarrativeSection, ValidationStatus } from '../types/narrative';
+import { NarrativeSection, ValidationStatus, NarrativeModule, ModuleCompletionStatus } from '../types/narrative';
 import { DynamicNarrativeSection } from './DynamicNarrativeSection';
 import { DynamicTextPreview } from './DynamicTextPreview';
 import { CustomStepIcon } from './CustomStepIcon';
@@ -37,7 +43,6 @@ interface NarrativeViewProps {
 }
 
 const DRAWER_WIDTH = 400;
-const VISIBLE_STEPS = 5;
 
 export const NarrativeView: React.FC<NarrativeViewProps> = ({
   sections,
@@ -50,59 +55,38 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [activeStep, setActiveStep] = useState(0);
-  const [carouselStart, setCarouselStart] = useState(0);
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set([0]));
-  const previewRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [isModulePreviewOpen, setIsModulePreviewOpen] = useState(false);
 
-  useEffect(() => {
-    // Initialize refs array
-    previewRefs.current = sections.map((_, i) => previewRefs.current[i] || null);
+  // Group sections by module
+  const modules = useMemo(() => {
+    const moduleMap = new Map<string, NarrativeModule>();
+    
+    sections.forEach(section => {
+      if (!moduleMap.has(section.moduleId)) {
+        moduleMap.set(section.moduleId, {
+          id: section.moduleId,
+          name: section.moduleName,
+          sections: [],
+        });
+      }
+      moduleMap.get(section.moduleId)?.sections.push(section);
+    });
+
+    return Array.from(moduleMap.values());
   }, [sections]);
 
-  useEffect(() => {
-    // Scroll to active section in preview
-    const activeRef = previewRefs.current[activeStep];
-    if (activeRef) {
-      activeRef.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
+  // Get the module for a section
+  const getModuleForSection = useCallback((sectionIndex: number) => {
+    let currentIndex = 0;
+    for (const module of modules) {
+      if (currentIndex + module.sections.length > sectionIndex) {
+        return module;
+      }
+      currentIndex += module.sections.length;
     }
-  }, [activeStep]);
-
-  const handleStepClick = useCallback((step: number) => {
-    setActiveStep(step);
-    setVisitedSteps(prev => new Set([...prev, step]));
-    
-    // Only adjust carousel if step is outside visible range
-    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
-    if (step < carouselStart) {
-      setCarouselStart(step);
-    } else if (step >= carouselStart + VISIBLE_STEPS) {
-      setCarouselStart(Math.min(maxStart, step));
-    }
-  }, [carouselStart, sections.length]);
-
-  const handleCarouselScroll = useCallback((direction: 'left' | 'right') => {
-    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
-    
-    if (direction === 'left') {
-      setCarouselStart(current => Math.max(0, current - 1));
-    } else {
-      setCarouselStart(current => Math.min(maxStart, current + 1));
-    }
-  }, [sections.length]);
-
-  const handleFastForward = useCallback(() => {
-    const maxStart = Math.max(0, sections.length - VISIBLE_STEPS);
-    setCarouselStart(maxStart);
-    setActiveStep(sections.length - 1);
-  }, [sections.length]);
-
-  const handleFastRewind = useCallback(() => {
-    setCarouselStart(0);
-    setActiveStep(0);
-  }, []);
+    return modules[modules.length - 1];
+  }, [modules]);
 
   const getSectionCompletionStatus = useCallback((section: NarrativeSection) => {
     const sectionFields = section.fields;
@@ -139,59 +123,279 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
     
     const hasMissingRequired = completionStatus.required > completionStatus.completedRequired;
 
+    // Only show warning if it's not the first step or if we've visited other steps
+    const showWarning = hasBeenVisited && (hasErrors || hasMissingRequired) && (stepIndex !== 0 || visitedSteps.size > 1);
+
     return {
       isComplete: !hasErrors && !hasMissingRequired && completionStatus.completed === completionStatus.total,
-      hasWarning: hasBeenVisited && (hasErrors || hasMissingRequired),
+      hasWarning: showWarning,
       completionStatus,
     };
   }, [sections, visitedSteps, validation, getSectionCompletionStatus]);
 
-  const renderNavigationPanel = () => (
-    <Box
-      sx={{
-        height: '100%',
-        overflow: 'auto',
-        p: 3,
-        backgroundColor: theme.palette.background.default,
-        scrollBehavior: 'smooth',
+  const getModuleCompletionStatus = useCallback((module: NarrativeModule): ModuleCompletionStatus => {
+    let total = 0;
+    let completed = 0;
+    let required = 0;
+    let completedRequired = 0;
+    let hasWarnings = false;
+
+    module.sections.forEach(section => {
+      const status = getSectionCompletionStatus(section);
+      total += status.total;
+      completed += status.completed;
+      required += status.required;
+      completedRequired += status.completedRequired;
+      
+      const sectionStatus = getStepStatus(sections.findIndex(s => s.id === section.id));
+      if (sectionStatus.hasWarning) {
+        hasWarnings = true;
+      }
+    });
+
+    return {
+      total,
+      completed,
+      required,
+      completedRequired,
+      hasWarnings,
+      isComplete: completed === total && completedRequired === required && !hasWarnings,
+    };
+  }, [sections, getSectionCompletionStatus, getStepStatus]);
+
+  const handleStepClick = useCallback((step: number) => {
+    setActiveStep(step);
+    setVisitedSteps(prev => new Set([...prev, step]));
+  }, []);
+
+  const renderModulePreview = () => {
+    const currentModule = getModuleForSection(activeStep);
+    return (
+      <Modal
+        open={isModulePreviewOpen}
+        onClose={() => setIsModulePreviewOpen(false)}
+        closeAfterTransition
+        disablePortal
+        keepMounted={false}
+        disableEnforceFocus
+        disableAutoFocus
+        aria-labelledby="module-preview-title"
+      >
+        <Fade in={isModulePreviewOpen}>
+          <Box
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="module-preview-title"
+            sx={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '80vw',
+              maxWidth: 1000,
+              maxHeight: '90vh',
+              bgcolor: 'background.paper',
+              boxShadow: 24,
+              borderRadius: 1,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Box
+              sx={{
+                p: 2,
+                borderBottom: 1,
+                borderColor: 'divider',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <Typography id="module-preview-title" variant="h6">
+                {currentModule.name}
+              </Typography>
+              <IconButton 
+                onClick={() => setIsModulePreviewOpen(false)}
+                size="small"
+                aria-label="Close preview"
+              >
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <Box
+              sx={{
+                flex: 1,
+                overflow: 'auto',
+                p: 4,
+                backgroundColor: '#f8f9fa',
+              }}
+            >
+              <Paper
+                sx={{
+                  maxWidth: 800,
+                  mx: 'auto',
+                  p: 6,
+                  minHeight: '100%',
+                  boxShadow: theme.shadows[4],
+                }}
+              >
+                {currentModule.sections.map((section, index) => (
+                  <Box key={section.id} sx={{ mb: 4 }}>
+                    <Typography variant="h6" gutterBottom>
+                      {section.title}
+                    </Typography>
+                    <DynamicTextPreview
+                      section={section}
+                      values={values}
+                    />
+                    {index < currentModule.sections.length - 1 && (
+                      <Divider sx={{ my: 3 }} />
+                    )}
+                  </Box>
+                ))}
+              </Paper>
+            </Box>
+          </Box>
+        </Fade>
+      </Modal>
+    );
+  };
+
+  const renderNavigationPanel = () => {
+    const currentModule = getModuleForSection(activeStep);
+    return (
+      <Box
+        sx={{
+          height: '100%',
+          overflow: 'auto',
+          backgroundColor: theme.palette.background.default,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6" sx={{ color: 'text.primary' }}>
+              Module Navigator
+            </Typography>
+            <Tooltip title="Read Current Module">
+              <IconButton
+                onClick={() => setIsModulePreviewOpen(true)}
+                size="small"
+                color="primary"
+              >
+                <ArticleIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {currentModule.name}
+          </Typography>
+        </Box>
+        <List component="nav" sx={{ px: 2, py: 1, flex: 1 }}>
+          {currentModule.sections.map((section) => {
+            const absoluteIndex = sections.findIndex(s => s.id === section.id);
+            const { isComplete, hasWarning } = getStepStatus(absoluteIndex);
+            return (
+              <ListItem
+                key={section.id}
+                button
+                selected={absoluteIndex === activeStep}
+                onClick={() => handleStepClick(absoluteIndex)}
+                sx={{
+                  borderRadius: 1,
+                  mb: 0.5,
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    },
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 36 }}>
+                  {isComplete ? (
+                    <CheckCircleIcon fontSize="small" color="success" />
+                  ) : hasWarning ? (
+                    <WarningIcon fontSize="small" color="warning" />
+                  ) : (
+                    <UncheckedIcon fontSize="small" color="action" />
+                  )}
+                </ListItemIcon>
+                <ListItemText
+                  primary={section.title}
+                  primaryTypographyProps={{
+                    variant: 'body2',
+                    sx: { fontWeight: absoluteIndex === activeStep ? 600 : 400 },
+                  }}
+                />
+              </ListItem>
+            );
+          })}
+        </List>
+      </Box>
+    );
+  };
+
+  const renderStepper = () => (
+    <Stepper 
+      activeStep={activeStep} 
+      alternativeLabel
+      sx={{ 
+        mb: 4,
+        '& .MuiStepLabel-root': {
+          cursor: 'pointer',
+        },
       }}
     >
-      <Typography variant="h6" sx={{ color: 'text.primary', mb: 3 }}>
-        Navigation
-      </Typography>
-      {sections.map((section, index) => (
-        <Paper
-          key={section.id}
-          ref={el => previewRefs.current[index] = el}
-          sx={{
-            p: 3,
-            mb: 2,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            position: 'relative',
-            scrollMarginTop: theme.spacing(2),
-            '&:hover': {
-              transform: 'translateX(-8px)',
-              boxShadow: theme.shadows[4],
-            },
-            ...(index === activeStep && {
-              borderLeft: `4px solid ${theme.palette.primary.main}`,
-              backgroundColor: 'rgba(33, 150, 243, 0.04)',
-            }),
-          }}
-          onClick={() => handleStepClick(index)}
-        >
-          <Typography variant="subtitle1" gutterBottom>
-            {section.title}
-          </Typography>
-          <DynamicTextPreview
-            section={section}
-            values={values}
-          />
-        </Paper>
-      ))}
-    </Box>
+      {modules.map((module) => {
+        const moduleStatus = getModuleCompletionStatus(module);
+        return (
+          <Step 
+            key={module.id}
+            completed={moduleStatus.isComplete}
+          >
+            <StepLabel
+              onClick={() => {
+                const firstIncompleteSection = module.sections.findIndex((section) => {
+                  const absoluteIndex = sections.findIndex(s => s.id === section.id);
+                  const status = getStepStatus(absoluteIndex);
+                  return !status.isComplete;
+                });
+                
+                const targetIndex = firstIncompleteSection === -1
+                  ? sections.findIndex(s => s.id === module.sections[0].id)
+                  : sections.findIndex(s => s.id === module.sections[firstIncompleteSection].id);
+                
+                handleStepClick(targetIndex);
+              }}
+              StepIconComponent={(props) => (
+                <CustomStepIcon 
+                  {...props}
+                  hasWarning={moduleStatus.hasWarnings}
+                  isComplete={moduleStatus.isComplete}
+                  completionStatus={{
+                    total: moduleStatus.total,
+                    completed: moduleStatus.completed,
+                    required: moduleStatus.required,
+                    completedRequired: moduleStatus.completedRequired,
+                  }}
+                  moduleName={module.name}
+                />
+              )}
+            >
+              {module.name}
+            </StepLabel>
+          </Step>
+        );
+      })}
+    </Stepper>
   );
+
+  const currentSection = sections[activeStep];
+  const currentModule = getModuleForSection(activeStep);
 
   const renderFullDocumentPreview = () => (
     <Modal
@@ -261,53 +465,61 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                 p: 8,
                 minHeight: '100%',
                 boxShadow: theme.shadows[4],
-                '&:hover': {
-                  cursor: 'text',
-                  '& .section-link': {
-                    opacity: 1,
-                  },
-                },
               }}
             >
-              {sections.map((section, index) => (
-                <Box
-                  key={section.id}
-                  sx={{
-                    mb: 4,
-                    position: 'relative',
-                    '&:hover': {
-                      '& .section-link': {
-                        opacity: 1,
-                      },
-                    },
-                  }}
-                >
-                  <Button
-                    className="section-link"
-                    variant="text"
-                    size="small"
-                    onClick={() => {
-                      handleStepClick(index);
-                      onPreviewClose();
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      left: -6,
-                      opacity: 0,
-                      transition: 'opacity 0.2s',
-                      transform: 'translateX(-100%)',
-                      textTransform: 'none',
-                    }}
-                  >
-                    Edit Section
-                  </Button>
-                  <Typography variant="h6" gutterBottom color="primary">
-                    {section.title}
+              {modules.map((module) => (
+                <Box key={module.id} sx={{ mb: 6 }}>
+                  <Typography variant="h5" gutterBottom color="primary">
+                    {module.name}
                   </Typography>
-                  <DynamicTextPreview
-                    section={section}
-                    values={values}
-                  />
+                  <Divider sx={{ mb: 3 }} />
+                  {module.sections.map((section) => {
+                    const absoluteIndex = sections.findIndex(s => s.id === section.id);
+                    return (
+                      <Box
+                        key={section.id}
+                        sx={{
+                          mb: 4,
+                          position: 'relative',
+                          '&:hover': {
+                            '& .section-link': {
+                              opacity: 1,
+                            },
+                          },
+                        }}
+                      >
+                        <Button
+                          className="section-link"
+                          variant="text"
+                          size="small"
+                          onClick={() => {
+                            handleStepClick(absoluteIndex);
+                            onPreviewClose();
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            left: -6,
+                            opacity: 0,
+                            transition: 'opacity 0.2s',
+                            transform: 'translateX(-100%)',
+                            textTransform: 'none',
+                          }}
+                        >
+                          Edit Section
+                        </Button>
+                        <Typography variant="h6" gutterBottom>
+                          {section.title}
+                        </Typography>
+                        <DynamicTextPreview
+                          section={section}
+                          values={values}
+                        />
+                        {module.sections.indexOf(section) < module.sections.length - 1 && (
+                          <Divider sx={{ my: 3 }} />
+                        )}
+                      </Box>
+                    );
+                  })}
                 </Box>
               ))}
             </Paper>
@@ -316,170 +528,6 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
       </Fade>
     </Modal>
   );
-
-  const renderStepper = () => {
-    const leftHidden = carouselStart;
-    const rightHidden = Math.max(0, sections.length - (carouselStart + VISIBLE_STEPS));
-
-    return (
-      <Box
-        sx={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {leftHidden > 0 ? (
-            <>
-              <IconButton 
-                onClick={handleFastRewind} 
-                color="primary"
-                size="small"
-                title="Go to start"
-              >
-                <FastRewindIcon />
-              </IconButton>
-              <Typography
-                variant="caption"
-                sx={{
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 1,
-                  minWidth: 24,
-                  textAlign: 'center',
-                  fontSize: '0.75rem',
-                }}
-              >
-                1-{leftHidden}
-              </Typography>
-              <IconButton 
-                onClick={() => handleCarouselScroll('left')} 
-                size="small"
-              >
-                <KeyboardArrowLeft />
-              </IconButton>
-            </>
-          ) : (
-            <Box
-              sx={{
-                width: 4,
-                height: 24,
-                bgcolor: 'primary.main',
-                borderRadius: 1,
-                mr: 1,
-              }}
-            />
-          )}
-        </Box>
-
-        <Stepper 
-          activeStep={activeStep} 
-          nonLinear
-          sx={{ 
-            flex: 1,
-            '& .MuiStepLabel-root': {
-              cursor: 'pointer',
-              padding: '0 16px',
-            },
-            '& .MuiStepLabel-labelContainer': {
-              width: 'auto',
-              color: 'text.primary',
-            },
-            '& .MuiStepLabel-label': {
-              fontSize: '0.875rem',
-            },
-            '& .Mui-active': {
-              color: 'primary.main',
-              fontWeight: 600,
-            },
-          }}
-        >
-          {sections.slice(carouselStart, carouselStart + VISIBLE_STEPS).map((section, index) => {
-            const absoluteIndex = index + carouselStart;
-            const { isComplete, hasWarning, completionStatus } = getStepStatus(absoluteIndex);
-            const isActive = absoluteIndex === activeStep;
-            
-            return (
-              <Step 
-                key={section.id} 
-                completed={isComplete}
-                active={isActive}
-              >
-                <StepLabel
-                  onClick={() => handleStepClick(absoluteIndex)}
-                  StepIconComponent={(props) => (
-                    <CustomStepIcon 
-                      {...props} 
-                      hasWarning={hasWarning && visitedSteps.has(absoluteIndex) && !isActive}
-                      sectionTitle={section.title}
-                      completionStatus={completionStatus}
-                      icon={absoluteIndex + 1}
-                      isComplete={isComplete}
-                      isActive={isActive}
-                    />
-                  )}
-                >
-                  {section.title}
-                </StepLabel>
-              </Step>
-            );
-          })}
-        </Stepper>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {rightHidden > 0 ? (
-            <>
-              <IconButton 
-                onClick={() => handleCarouselScroll('right')} 
-                size="small"
-              >
-                <KeyboardArrowRight />
-              </IconButton>
-              <Typography
-                variant="caption"
-                sx={{
-                  bgcolor: 'primary.main',
-                  color: 'white',
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 1,
-                  minWidth: 24,
-                  textAlign: 'center',
-                  fontSize: '0.75rem',
-                }}
-              >
-                {sections.length - rightHidden + 1}-{sections.length}
-              </Typography>
-              <IconButton 
-                onClick={handleFastForward} 
-                color="primary"
-                size="small"
-                title="Go to end"
-              >
-                <FastForwardIcon />
-              </IconButton>
-            </>
-          ) : (
-            <Box
-              sx={{
-                width: 4,
-                height: 24,
-                bgcolor: 'primary.main',
-                borderRadius: 1,
-                ml: 1,
-              }}
-            />
-          )}
-        </Box>
-      </Box>
-    );
-  };
-
-  const currentSection = sections[activeStep];
 
   return (
     <Container 
@@ -552,12 +600,15 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
                     background: theme => {
                       const status = getStepStatus(activeStep);
                       if (status.isComplete) return theme.palette.success.main;
-                      if (status.hasWarning && visitedSteps.has(activeStep)) return theme.palette.warning.main;
+                      if (status.hasWarning) return theme.palette.warning.main;
                       return theme.palette.primary.main;
                     },
                   },
                 }}
               >
+                <Typography variant="overline" color="text.secondary" gutterBottom>
+                  {currentModule.name}
+                </Typography>
                 <Typography variant="h5" gutterBottom>
                   {currentSection.title}
                 </Typography>
@@ -617,6 +668,7 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
           </Paper>
         )}
       </Box>
+      {renderModulePreview()}
       {renderFullDocumentPreview()}
     </Container>
   );
