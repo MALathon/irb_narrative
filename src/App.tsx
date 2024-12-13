@@ -19,7 +19,7 @@ import {
 } from '@mui/icons-material';
 import { NarrativeProvider, useNarrative } from './context/NarrativeContext';
 import { NarrativeView } from './components/NarrativeView';
-import { irbNarrativeSchema } from './schemas/irbNarrativeSchema';
+import { modules } from './data/modules';
 
 const theme = createTheme({
   palette: {
@@ -87,7 +87,7 @@ const NarrativeContent: React.FC<NarrativeContentProps> = ({
   return (
     <Container maxWidth={false}>
       <NarrativeView
-        sections={irbNarrativeSchema.sections}
+        sections={modules.flatMap(m => m.sections)}
         values={state}
         onUpdate={updateField}
         isPreviewOpen={isPreviewOpen}

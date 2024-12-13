@@ -206,7 +206,9 @@ export const NarrativeSectionRenderer: React.FC<NarrativeSectionRendererProps> =
   };
 
   const renderTemplate = (template: string) => {
-    const parts = template.split(/(\{[^}]+\})/g);
+    // Remove any CSS-like text that might be in the template
+    const cleanTemplate = template.replace(/;position:absolute.*?}}/g, '');
+    const parts = cleanTemplate.split(/(\{[^}]+\})/g);
     return parts.map((part, index) => {
       if (part.match(/^\{([^}]+)\}$/)) {
         const fieldId = part.slice(1, -1);
@@ -235,7 +237,8 @@ export const NarrativeSectionRenderer: React.FC<NarrativeSectionRendererProps> =
           </Box>
         );
       }
-      return <span key={index}>{part}</span>;
+      // Clean any remaining CSS-like text from regular parts
+      return <span key={index}>{part.replace(/;position:absolute.*?}}/g, '')}</span>;
     });
   };
 

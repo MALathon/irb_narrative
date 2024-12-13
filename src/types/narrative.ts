@@ -1,112 +1,14 @@
-export interface Field {
-  id: string;
-  type: string;
+export interface Option {
+  value: string;
   label: string;
-  placeholder?: string;
-  options?: Array<{ value: string; label: string; triggers?: { showFields: string[] } }>;
-  validation?: Array<{
-    type: string;
-    message: string;
-    value?: any;
-    customValidator?: (value: any) => boolean;
-  }>;
-  dependsOn?: {
-    fieldId: string;
-    value?: any;
-    operator?: string;
-    condition?: string;
-  };
-  helpText?: string;
-  metadata?: {
-    category: string;
-    importance: 'required' | 'recommended' | 'optional';
-  };
-}
-
-export interface NarrativeSection {
-  id: string;
-  title: string;
-  moduleId: string;
-  moduleName: string;
   description?: string;
-  template: string;
-  fields: Field[];
-  dynamicContent?: DynamicContent[];
-  conditionalSections?: Array<{
-    condition: {
-      fieldId: string;
-      value: any;
-      operator?: 'equals' | 'contains' | 'in' | 'not';
-    };
-    template: string;
-    fields: Field[];
-  }>;
-  metadata?: {
-    category: string;
-    importance: 'required' | 'recommended' | 'optional';
-    reviewerNotes?: string;
+  triggers?: {
+    showFields: string[];
   };
 }
 
-export interface NarrativeModule {
-  id: string;
-  name: string;
-  sections: NarrativeSection[];
-}
-
-export interface NarrativeSchema {
-  sections: NarrativeSection[];
-  metadata: {
-    version: string;
-    lastUpdated: string;
-    institution: string;
-    type: 'AI/ML' | 'Clinical' | 'Other';
-  };
-}
-
-export interface NarrativeState {
-  [fieldId: string]: any;
-  _metadata?: {
-    lastUpdated: string;
-    completionStatus: {
-      [sectionId: string]: {
-        completed: boolean;
-        missingRequired?: string[];
-      };
-    };
-    reviewStatus?: {
-      status: 'draft' | 'submitted' | 'in_review' | 'approved' | 'rejected';
-      comments?: string[];
-    };
-  };
-}
-
-export interface DynamicContent {
-  condition: {
-    fieldId: string;
-    value: any;
-    operator?: string;
-  };
-  content: string;
-}
-
-export interface DynamicSectionProps {
-  section: NarrativeSection;
-  values: { [key: string]: any };
-  onUpdate: (fieldId: string, value: any) => void;
-  errors?: { [fieldId: string]: string[] };
-}
-
-export type ValidationStatus = {
-  isValid: boolean;
-  errors: { [fieldId: string]: string[] };
-  warnings: { [fieldId: string]: string[] };
-  missingRequired: string[];
-};
-
-export interface NarrativeValidation {
-  validateSection: (section: NarrativeSection, values: NarrativeState) => ValidationStatus;
-  validateAll: (schema: NarrativeSchema, values: NarrativeState) => ValidationStatus;
+export interface ValidationStatus {
+  errors: { [key: string]: string[] };
 }
 
 export interface ModuleCompletionStatus {
@@ -118,8 +20,65 @@ export interface ModuleCompletionStatus {
   isComplete: boolean;
 }
 
-export interface FieldOption {
-  value: string;
+export interface NarrativeState {
+  [key: string]: any;
+}
+
+export interface Field {
+  id: string;
+  type: 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'number' | 'checkbox';
   label: string;
-  additionalText?: string;
+  placeholder?: string;
+  description?: string;
+  helpText?: string;
+  options?: Option[];
+  allowOther?: boolean;
+  validation?: {
+    type: 'required' | 'pattern' | 'custom' | 'min' | 'max';
+    message: string;
+    value?: any;
+  }[];
+  dependsOn?: {
+    fieldId: string;
+    value: any;
+    operator?: 'equals' | 'contains' | 'not' | 'in' | 'exists';
+    condition?: string;
+  };
+  optional?: boolean;
+}
+
+export interface NarrativeSection {
+  id: string;
+  moduleId: string;
+  moduleName: string;
+  title: string;
+  description?: string;
+  guidance?: string;
+  template: string;
+  fields: Field[];
+  dynamicContent?: {
+    condition: {
+      fieldId: string;
+      value: any;
+      operator?: string;
+    };
+    content: string;
+  }[];
+  conditionalSections?: NarrativeSection[];
+}
+
+export interface NarrativeModule {
+  id: string;
+  name: string;
+  sections: NarrativeSection[];
+}
+
+export interface NarrativeSchema {
+  sections: NarrativeSection[];
+  metadata?: {
+    version: string;
+    lastUpdated: string;
+    institution: string;
+    type: string;
+  };
 } 
