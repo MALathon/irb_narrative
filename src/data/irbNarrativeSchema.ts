@@ -1,4 +1,4 @@
-import { NarrativeModule } from '../types/narrative';
+import { NarrativeModule, Option } from '../types/narrative';
 
 export const studyOverviewModule: NarrativeModule = {
   id: 'study_overview',
@@ -239,80 +239,343 @@ export const dataAccessModule: NarrativeModule = {
       title: 'Study Resources & Data Types',
       description: 'Define what resources and data types you need for your study.',
       guidance: `In this section, we need you to specify:
-- What types of data and resources you'll need
-- Who will have access to the data
-- How data will be stored and transferred
-- Any sensitive data considerations`,
-      template: 'To accomplish our research objectives, we will utilize {resource_types}. The study data will be accessible to {data_access_list} and will be securely stored in {storage_location}. {data_transfer_method}{sensitive_data_details}',
+- What types of data sources you'll use
+- The level of data identifiability
+- Any sensitive data categories
+- The origin and format of your data
+- Expected data volume and complexity`,
+      template: `To accomplish our research objectives, we will utilize {data_sources}{data_sources_conditional_text}
+
+The data will have the following identifiability levels: {identifiability_levels}.
+
+{sensitive_categories_text}
+
+The data will be obtained from {data_origin} and primarily consists of {data_formats}.
+
+We anticipate a dataset size and complexity of approximately {data_volume}.`,
       fields: [
         {
-          id: 'resource_types',
-          label: 'Resource Types',
+          id: 'data_sources',
+          label: 'Data Sources/Types',
           type: 'multiSelect',
-          placeholder: 'What resources do you need?',
-          description: 'Select all the types of data and resources required for your study',
+          placeholder: 'What data sources will you use?',
+          description: 'Select all data sources and types that will be used in your study',
           allowOther: true,
           options: [
-            { value: 'electronic_health_records', label: 'electronic health records' },
-            { value: 'imaging_data', label: 'medical imaging data' },
-            { value: 'laboratory_results', label: 'laboratory test results' },
-            { value: 'genetic_data', label: 'genetic/genomic data' },
-            { value: 'demographic_data', label: 'demographic information' },
-            { value: 'survey_responses', label: 'survey/questionnaire responses' },
-            { value: 'device_data', label: 'medical device data' },
-            { value: 'biospecimens', label: 'biospecimens' }
+            { value: 'external_dua', label: 'externally sourced data under Data Use Agreement' },
+            { value: 'public_datasets', label: 'publicly available datasets' },
+            { value: 'internal_ehr', label: 'internally sourced clinical data from Mayo EHR' },
+            { value: 'prospective_data', label: 'prospectively collected patient data at Mayo Clinic' }
           ]
         },
         {
-          id: 'data_access_list',
-          label: 'Data Access',
-          type: 'multiSelect',
-          placeholder: 'Who needs access to the data?',
-          description: 'Select all individuals or groups who will need access',
-          allowOther: true,
-          options: [
-            { value: 'research_team', label: 'the primary research team' },
-            { value: 'mayo_collaborators', label: 'Mayo Clinic collaborators' },
-            { value: 'external_collaborators', label: 'external research collaborators' },
-            { value: 'data_analysts', label: 'data analysis specialists' },
-            { value: 'statisticians', label: 'statistical consultants' }
-          ]
-        },
-        {
-          id: 'storage_location',
-          label: 'Storage Location',
-          type: 'select',
-          placeholder: 'Where will the data be stored?',
-          description: 'Select the primary storage location for study data',
-          allowOther: true,
-          options: [
-            { value: 'mayo_secure_servers', label: 'Mayo Clinic secure servers' },
-            { value: 'approved_cloud_platform', label: 'an approved cloud platform' },
-            { value: 'dedicated_research_database', label: 'a dedicated research database' },
-            { value: 'institutional_repository', label: 'an institutional data repository' }
-          ]
-        },
-        {
-          id: 'data_transfer_method',
-          label: 'Data Transfer Method',
-          type: 'select',
-          placeholder: 'How will data be transferred?',
-          description: 'Select the primary method for secure data transfer',
-          allowOther: true,
-          options: [
-            { value: 'secure_file_transfer', label: 'Data will be transferred using secure file transfer protocols.' },
-            { value: 'encrypted_transmission', label: 'Data will be transmitted using end-to-end encryption.' },
-            { value: 'secure_api', label: 'Data will be accessed through a secure API.' },
-            { value: 'direct_database_access', label: 'Data will be accessed directly through secure database connections.' }
-          ]
-        },
-        {
-          id: 'sensitive_data_details',
-          label: 'Sensitive Data Details',
+          id: 'data_sources_conditional_text',
           type: 'text',
-          placeholder: 'Any sensitive data considerations?',
-          description: 'Optional: Describe any sensitive data considerations or special handling requirements',
-          validation: []
+          label: '',
+          description: '',
+          optional: true,
+          hidden: true,
+          noLabel: true,
+          generateText: (values: any) => {
+            const texts = [];
+            if (!values.data_sources?.length) {
+              return '';
+            }
+            if (values.data_sources?.includes('external_dua') || values.data_sources?.includes('public_datasets')) {
+              texts.push(':');  // Only add colon if we have conditional text to show
+            }
+            if (values.data_sources?.includes('external_dua')) {
+              texts.push(`\n\n• This external data will be acquired from ${values.external_provider || '[Enter the name of the external data provider]'} under a ${values.dua_type || '[What type of Data Use Agreement?]'} Data Use Agreement and is maintained by ${values.data_maintainer || '[Enter the organization that maintains the data]'}`);
+            }
+            if (values.data_sources?.includes('public_datasets')) {
+              texts.push(`\n\n• We will incorporate the ${values.dataset_name || '[Enter the dataset name]'} dataset, which is ${values.dataset_access_type || '[What is the access level of the dataset?]'} and maintained by ${values.data_maintainer || '[Enter the organization that maintains the data]'}`);
+            }
+            return texts.join('');
+          }
+        },
+        {
+          id: 'dataset_name',
+          type: 'text',
+          label: 'Dataset Name',
+          placeholder: 'Enter the dataset name',
+          description: 'Name of the public dataset being used',
+          dependsOn: {
+            fieldId: 'data_sources',
+            value: 'public_datasets',
+            operator: 'contains'
+          }
+        },
+        {
+          id: 'dataset_access_type',
+          type: 'select',
+          label: 'Dataset Access Level',
+          placeholder: 'What is the access level of the dataset?',
+          description: 'Select the access level of the public dataset',
+          options: [
+            { value: 'fully_open', label: 'fully open access' },
+            { value: 'registered', label: 'available with registration' },
+            { value: 'restricted', label: 'restricted access' }
+          ],
+          dependsOn: {
+            fieldId: 'data_sources',
+            value: 'public_datasets',
+            operator: 'contains'
+          }
+        },
+        {
+          id: 'external_provider',
+          type: 'text',
+          label: 'External Data Provider',
+          placeholder: 'Enter the name of the external data provider',
+          description: 'Name of the institution providing the external data',
+          dependsOn: {
+            fieldId: 'data_sources',
+            value: 'external_dua',
+            operator: 'contains'
+          }
+        },
+        {
+          id: 'dua_type',
+          type: 'select',
+          label: 'DUA Type',
+          placeholder: 'What type of Data Use Agreement?',
+          description: 'Select the type of Data Use Agreement',
+          options: [
+            { value: 'standard', label: 'standard institutional' },
+            { value: 'custom', label: 'custom negotiated' },
+            { value: 'federal', label: 'federal data use' }
+          ],
+          dependsOn: {
+            fieldId: 'data_sources',
+            value: 'external_dua',
+            operator: 'contains'
+          }
+        },
+        {
+          id: 'data_maintainer',
+          type: 'text',
+          label: 'Data Maintainer',
+          placeholder: 'Enter the organization that maintains the data',
+          description: 'Organization responsible for maintaining the data',
+          dependsOn: {
+            fieldId: 'data_sources',
+            value: ['external_dua', 'public_datasets'],
+            operator: 'contains'
+          }
+        },
+        {
+          id: 'identifiability_levels',
+          label: 'Identifiability Levels',
+          type: 'multiSelect',
+          placeholder: 'What level of identifiability will the data have?',
+          description: 'Select all applicable levels of data identifiability',
+          allowOther: true,
+          noLabel: true,
+          options: [
+            { value: 'fully_deidentified', label: 'fully de-identified according to HIPAA standards' },
+            { value: 'limited_dataset', label: 'a limited dataset containing only dates and zip codes' },
+            { value: 'coded', label: 'coded with a secure key maintained by the research team' },
+            { value: 'identifiable', label: 'identifiable as required for the research objectives' }
+          ]
+        },
+        {
+          id: 'sensitive_categories',
+          label: 'Sensitive Data Categories',
+          type: 'multiSelect',
+          placeholder: 'What sensitive data categories are included?',
+          description: 'Select all sensitive data categories that apply',
+          allowOther: true,
+          noLabel: true,
+          options: [
+            { value: 'genetic', label: 'genetic or genomic information' },
+            { value: 'mental_health', label: 'mental and behavioral health data' },
+            { value: 'reproductive', label: 'reproductive health information' },
+            { value: 'substance_use', label: 'substance use data' },
+            { value: 'none', label: 'no sensitive data categories' }
+          ],
+          expansionFields: {
+            'genetic': [
+              {
+                id: 'genomic_type',
+                type: 'select',
+                label: 'Genomic Data Type',
+                noLabel: true,
+                options: [
+                  { value: 'wgs', label: 'whole genome sequencing (WGS) data' },
+                  { value: 'wes', label: 'whole exome sequencing (WES) data' },
+                  { value: 'targeted_panel', label: 'targeted gene panel data' },
+                  { value: 'snp_array', label: 'SNP array data' }
+                ],
+                required: true
+              }
+            ],
+            'mental_health': [
+              {
+                id: 'mental_health_type',
+                type: 'text',
+                label: 'Mental Health Data Type',
+                noLabel: true,
+                placeholder: 'Specify type (e.g., clinical notes, psychiatric evaluations)',
+                required: true
+              }
+            ],
+            'reproductive': [
+              {
+                id: 'reproductive_type',
+                type: 'text',
+                label: 'Reproductive Data Type',
+                noLabel: true,
+                placeholder: 'Specify type (e.g., fertility treatments, obstetric records)',
+                required: true
+              }
+            ],
+            'substance_use': [
+              {
+                id: 'substance_type',
+                type: 'text',
+                label: 'Substance Type',
+                noLabel: true,
+                placeholder: 'Specify substance type or category',
+                required: true
+              }
+            ]
+          }
+        },
+        {
+          id: 'sensitive_categories_text',
+          type: 'text',
+          label: '',
+          description: '',
+          optional: true,
+          hidden: true,
+          noLabel: true,
+          generateText: (values: any) => {
+            const sensitiveOptions: Option[] = [
+              { value: 'genetic', label: 'genetic or genomic information' },
+              { value: 'mental_health', label: 'mental and behavioral health data' },
+              { value: 'reproductive', label: 'reproductive health information' },
+              { value: 'substance_use', label: 'substance use data' },
+              { value: 'none', label: 'no sensitive data categories' }
+            ];
+            
+            if (!values.sensitive_categories?.length) {
+              return 'The study includes the following sensitive data categories: [What sensitive data categories are included?]';
+            }
+            const texts = ['The study includes the following sensitive data categories:'];
+            values.sensitive_categories.forEach((category: string) => {
+              const option = sensitiveOptions.find((opt: Option) => opt.value === category);
+              if (!option) return;
+              
+              let text = `• ${option.label}`;
+              if (category === 'genetic' && values.genomic_type) {
+                text += `: ${values.genomic_type}`;
+              }
+              if (category === 'mental_health' && values.mental_health_type) {
+                text += `: ${values.mental_health_type}`;
+              }
+              if (category === 'reproductive' && values.reproductive_type) {
+                text += `: ${values.reproductive_type}`;
+              }
+              if (category === 'substance_use' && values.substance_type) {
+                text += `: ${values.substance_type}`;
+              }
+              texts.push(text);
+            });
+            return texts.join('\n');
+          }
+        },
+        {
+          id: 'data_formats',
+          label: 'Data Formats',
+          type: 'multiSelect',
+          placeholder: 'What formats will the data be in?',
+          description: 'Select all applicable data formats',
+          allowOther: true,
+          noLabel: true,
+          options: [
+            { value: 'structured_clinical', label: 'structured clinical data (including laboratory results and vital signs)' },
+            { value: 'imaging', label: 'medical imaging data (including radiology scans and pathology slides)' },
+            { value: 'genomic', label: 'genomic and molecular data' },
+            { value: 'textual', label: 'unstructured clinical notes and documentation' }
+          ],
+          expansionFields: {
+            'structured_clinical': [
+              {
+                id: 'clinical_domains',
+                type: 'text',
+                label: 'Clinical Domains',
+                placeholder: 'Specify clinical domains (e.g., oncology labs, cardiology vitals)',
+                required: true
+              }
+            ],
+            'imaging': [
+              {
+                id: 'imaging_modality',
+                type: 'multiSelect',
+                label: 'Imaging Modalities',
+                options: [
+                  { value: 'mri', label: 'Magnetic Resonance Imaging (MRI)' },
+                  { value: 'ct', label: 'Computed Tomography (CT)' },
+                  { value: 'xray', label: 'X-ray imaging' },
+                  { value: 'histopathology', label: 'histopathology slides' }
+                ],
+                required: true
+              },
+              {
+                id: 'image_count',
+                type: 'number',
+                label: 'Approximate Number of Images',
+                required: true
+              }
+            ],
+            'genomic': [
+              {
+                id: 'genomic_data_type',
+                type: 'text',
+                label: 'Genomic Data Type',
+                placeholder: 'Specify type (e.g., WES, WGS, gene expression data)',
+                required: true
+              }
+            ],
+            'textual': [
+              {
+                id: 'text_cleaning',
+                type: 'text',
+                label: 'Data Cleaning Steps',
+                placeholder: 'Describe planned data cleaning steps',
+                required: true
+              }
+            ]
+          }
+        },
+        {
+          id: 'data_origin',
+          label: 'Data Origin',
+          type: 'multiSelect',
+          placeholder: 'Where will the data come from?',
+          description: 'Select all applicable data origins',
+          allowOther: true,
+          noLabel: true,
+          options: [
+            { value: 'mayo_ehr', label: 'Mayo Clinic EHR' },
+            { value: 'external_collaborators', label: 'external collaborators' },
+            { value: 'public_repositories', label: 'public data repositories' },
+            { value: 'prospective_collection', label: 'prospective data collection' }
+          ]
+        },
+        {
+          id: 'data_volume',
+          label: 'Data Volume & Complexity',
+          type: 'select',
+          placeholder: 'What is the expected data volume?',
+          description: 'Select the anticipated size and complexity of your dataset',
+          allowOther: true,
+          options: [
+            { value: 'small', label: 'a small dataset (less than 1GB)' },
+            { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)' },
+            { value: 'large', label: 'a large dataset (more than 100GB)' },
+            { value: 'undetermined', label: 'a dataset with size yet to be determined' }
+          ]
         }
       ]
     },

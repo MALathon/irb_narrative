@@ -1,3 +1,13 @@
+export interface FieldOption {
+  value: string;
+  label: string;
+  description?: string;
+  additionalText?: string;
+  triggers?: {
+    showFields: string[];
+  };
+}
+
 export interface Option {
   value: string;
   label: string;
@@ -24,27 +34,35 @@ export interface NarrativeState {
   [key: string]: any;
 }
 
+export interface Validation {
+  type: 'required' | 'pattern' | 'custom' | 'min' | 'max';
+  message: string;
+  value?: any;
+}
+
+export interface DependsOn {
+  fieldId: string;
+  value: any;
+  operator?: 'equals' | 'contains' | 'not' | 'in' | 'exists';
+}
+
 export interface Field {
   id: string;
-  type: 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'number' | 'checkbox';
+  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox';
   label: string;
   placeholder?: string;
   description?: string;
-  helpText?: string;
   options?: Option[];
   allowOther?: boolean;
-  validation?: {
-    type: 'required' | 'pattern' | 'custom' | 'min' | 'max';
-    message: string;
-    value?: any;
-  }[];
-  dependsOn?: {
-    fieldId: string;
-    value: any;
-    operator?: 'equals' | 'contains' | 'not' | 'in' | 'exists';
-    condition?: string;
-  };
   optional?: boolean;
+  required?: boolean;
+  hidden?: boolean;
+  noLabel?: boolean;
+  helpText?: string;
+  validation?: Validation[];
+  dependsOn?: DependsOn;
+  expansionFields?: { [key: string]: Field[] };
+  generateText?: (values: any) => string;
 }
 
 export interface NarrativeSection {

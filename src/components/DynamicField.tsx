@@ -16,6 +16,8 @@ import {
   Typography,
   SelectChangeEvent,
   FormLabel,
+  OutlinedInput,
+  ListItemText,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -45,7 +47,16 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
   };
 
   const handleMultiSelectChange = (event: SelectChangeEvent<string[]>) => {
-    onChange(event.target.value);
+    const newSelectedValues = event.target.value as string[];
+    
+    if (field.expansionFields) {
+      onChange({
+        ...value,
+        _selectedValues: newSelectedValues
+      });
+    } else {
+      onChange(newSelectedValues);
+    }
   };
 
   const handleDateChange = (date: Date | null) => {
@@ -111,42 +122,110 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
         );
 
       case 'multiSelect':
+        const selectedValues = field.expansionFields 
+          ? (value?._selectedValues || []) 
+          : (Array.isArray(value) ? value : []);
+
         return (
           <FormControl fullWidth size="small" error={!!error}>
             <InputLabel>{field.label}</InputLabel>
             <Select
               multiple
-              value={Array.isArray(value) ? value : []}
+              value={selectedValues}
               onChange={handleMultiSelectChange}
               label={field.label}
               renderValue={(selected) => (
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {(selected as string[]).map((value) => {
-                    const option = field.options?.find(opt => opt.value === value);
+                  {(selected as string[]).map((selectedValue) => {
+                    const option = field.options?.find(opt => opt.value === selectedValue);
                     return (
                       <Chip
-                        key={value}
-                        label={option?.label || value}
+                        key={selectedValue}
+                        label={option?.label || selectedValue}
                         size="small"
+                        onDelete={() => {
+                          const newValues = selectedValues.filter((v: string) => v !== selectedValue);
+                          if (field.expansionFields) {
+                            onChange({
+                              ...value,
+                              _selectedValues: newValues
+                            });
+                          } else {
+                            onChange(newValues);
+                          }
+                        }}
+                        sx={{
+                          backgroundColor: 'primary.light',
+                          color: 'primary.contrastText',
+                          '& .MuiChip-deleteIcon': {
+                            color: 'primary.contrastText',
+                            '&:hover': {
+                              color: 'error.main',
+                            },
+                          },
+                        }}
                       />
                     );
                   })}
                 </Box>
               )}
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 300,
+                    width: 'auto',
+                    maxWidth: 'none',
+                  },
+                },
+                anchorOrigin: {
+                  vertical: 'bottom',
+                  horizontal: 'left',
+                },
+                transformOrigin: {
+                  vertical: 'top',
+                  horizontal: 'left',
+                },
+              }}
             >
               {field.options?.map((option: FieldOption) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                  {option.additionalText && (
-                    <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
-                      ({option.additionalText})
-                    </Typography>
-                  )}
+                <MenuItem 
+                  key={option.value} 
+                  value={option.value}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    py: 1,
+                    px: 2,
+                    minWidth: 300,
+                    whiteSpace: 'normal',
+                  }}
+                >
+                  <Checkbox 
+                    checked={selectedValues.includes(option.value)}
+                    sx={{ p: 0.5 }}
+                  />
+                  <Box sx={{ ml: 1 }}>
+                    <Typography>{option.label}</Typography>
+                    {option.additionalText && (
+                      <Typography variant="caption" color="text.secondary">
+                        {option.additionalText}
+                      </Typography>
+                    )}
+                  </Box>
                 </MenuItem>
               ))}
             </Select>
             {(error || field.helpText) && (
               <FormHelperText>{error || field.helpText}</FormHelperText>
+            )}
+            {field.expansionFields && (
+              <ExpansionFields
+                field={field}
+                value={value}
+                onChange={onChange}
+                error={error}
+              />
             )}
           </FormControl>
         );
@@ -270,5 +349,55 @@ export const DynamicField: React.FC<DynamicFieldProps> = ({
     >
       {renderField()}
     </motion.div>
+  );
+};
+
+const ExpansionFields: React.FC<{
+  field: Field;
+  value: any;
+  onChange: (value: any) => void;
+  error?: any;
+}> = ({ field, value, onChange, error }) => {
+  if (!field.expansionFields || !value?._selectedValues) return null;
+
+  return (
+    <Box sx={{ mt: 2, ml: 2 }}>
+      {value._selectedValues.map((selectedValue: string) => {
+        const expansionFields = field.expansionFields?.[selectedValue];
+        if (!expansionFields) return null;
+
+        return (
+          <Box key={selectedValue} sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Additional details for {field.options?.find(opt => opt.value === selectedValue)?.label}:
+            </Typography>
+            <Box sx={{ pl: 2 }}>
+              {expansionFields.map((expansionField: Field) => {
+                const fieldValue = value[selectedValue]?.[expansionField.id];
+                
+                return (
+                  <Box key={expansionField.id} sx={{ mb: 1 }}>
+                    <DynamicField
+                      field={expansionField}
+                      value={fieldValue}
+                      onChange={(newValue) => {
+                        onChange({
+                          ...value,
+                          [selectedValue]: {
+                            ...(value[selectedValue] || {}),
+                            [expansionField.id]: newValue
+                          }
+                        });
+                      }}
+                      error={error?.[expansionField.id]}
+                    />
+                  </Box>
+                );
+              })}
+            </Box>
+          </Box>
+        );
+      })}
+    </Box>
   );
 }; 
