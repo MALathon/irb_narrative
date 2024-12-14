@@ -23,7 +23,7 @@ interface OptionType {
 
 interface DynamicField {
   id: string;
-  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText';
+  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
   label: string;
   placeholder?: string;
   description?: string;
@@ -76,7 +76,7 @@ interface ExpansionContent {
 
 interface ExpansionFields {
   [key: string]: {
-    type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
+    type: DynamicField['type'];
     label?: string;
     placeholder?: string;
     description?: string;
@@ -108,34 +108,23 @@ const section: NarrativeSection = {
   - Security measures
   - Sensitive data categories`,
   template: DATA_SOURCES_SCHEMA.template,
-  fields: [{
-    ...DATA_SOURCES_SCHEMA.fields.data_sources,
-    expansionFields: {
-      'internal_ehr': [
-        {
-          id: 'clinical_domain',
-          type: 'multiSelect' as const,
-          label: 'Clinical Domain',
-          placeholder: 'Select clinical domains',
-          description: 'Select all relevant clinical domains',
-          options: [
-            { value: 'pediatrics', label: 'Pediatrics' },
-            { value: 'cardiology', label: 'Cardiology' },
-            { value: 'oncology', label: 'Oncology' },
-            { value: 'neurology', label: 'Neurology' },
-            { value: 'internal_medicine', label: 'Internal Medicine' },
-            { value: 'psychiatry', label: 'Psychiatry' },
-            { value: 'orthopedics', label: 'Orthopedics' },
-            { value: 'dermatology', label: 'Dermatology' },
-            { value: 'endocrinology', label: 'Endocrinology' },
-            { value: 'gastroenterology', label: 'Gastroenterology' }
-          ],
-          required: true
-        },
-        // ... other internal_ehr fields
-      ]
+  fields: [
+    {
+      id: 'data_sources',
+      type: 'multiSelect' as const,
+      label: 'Data Sources',
+      placeholder: 'Which data sources will you use?',
+      description: 'Choose all the types of data you will need to access for your research',
+      allowOther: false,
+      options: [
+        { value: 'external_dua', label: 'external data requiring a Data Use Agreement', description: 'Data from outside organizations that requires a formal agreement to use' },
+        { value: 'public_datasets', label: 'publicly available research datasets', description: 'Data that is freely available to researchers' },
+        { value: 'internal_ehr', label: 'Mayo Clinic medical record data', description: 'Clinical data from Mayo Clinic electronic health records' },
+        { value: 'prospective_data', label: 'new data collected from Mayo Clinic patients', description: 'Data that will be gathered during this study' }
+      ],
+      expansionFields: DATA_SOURCES_SCHEMA.fields.data_sources.expansionFields
     }
-  }]
+  ]
 };
 
 // Define expansion mappings for each data source
@@ -362,13 +351,24 @@ const processDynamicSentence = (
     }
 
     const fieldId = match[1];
-    const field = sentence.fields[fieldId];
+    // For expansion fields, we need to get the field definition from EXPANSION_FIELDS
+    const field = EXPANSION_FIELDS[fieldId] ? {
+      ...EXPANSION_FIELDS[fieldId],
+      id: parentFieldId ? `${parentFieldId}-${fieldId}` : fieldId,
+      label: EXPANSION_FIELDS[fieldId].label || '',
+      placeholder: EXPANSION_FIELDS[fieldId].placeholder || '',
+      type: EXPANSION_FIELDS[fieldId].type,
+      options: EXPANSION_FIELDS[fieldId].options || [],
+      allowOther: EXPANSION_FIELDS[fieldId].allowOther
+    } as DynamicField : sentence.fields[fieldId];
+
     if (!field) {
       result.push(<React.Fragment key={`empty-${parentFieldId || 'root'}-${fieldId}-${index}-${Date.now()}`} />);
       return;
     }
 
-    const value = values[fieldId];
+    // For expansion fields, we need to look up the value in the correct place
+    const value = parentFieldId ? values[`${parentFieldId}-${fieldId}`] : values[fieldId];
     if (!value) {
       result.push(
         <React.Fragment key={`placeholder-${parentFieldId || 'root'}-${fieldId}-${index}-${Date.now()}`}>
@@ -383,75 +383,6 @@ const processDynamicSentence = (
         {renderValue(field, value)}
       </React.Fragment>
     );
-
-    // Handle expansion fields if they exist
-    if (EXPANSION_MAPPINGS[fieldId] && value) {
-      const selectedValues = Array.isArray(value) ? value : [value];
-      selectedValues.forEach((selectedValue, valueIndex) => {
-        const mapping = EXPANSION_MAPPINGS[fieldId][selectedValue];
-        if (mapping?.sentence) {
-          // Create expansion fields object with proper IDs
-          const expansionFieldsObj = Object.keys(EXPANSION_FIELDS).reduce((acc, key) => ({
-            ...acc,
-            [key]: {
-              ...EXPANSION_FIELDS[key],
-              id: `${fieldId}-${selectedValue}-${key}`,
-              displayId: `${fieldId}-${selectedValue}-${key}`,
-              placeholder: EXPANSION_FIELDS[key].placeholder || `[${EXPANSION_FIELDS[key].label}]`
-            }
-          }), {});
-
-          // Create expansion sentence with proper field values
-          const expansionSentence = processDynamicSentence(
-            {
-              template: mapping.sentence,
-              fields: expansionFieldsObj,
-              branches: {}
-            },
-            {
-              ...values,
-              ...Object.keys(expansionFieldsObj).reduce((acc, key) => ({
-                ...acc,
-                [`${fieldId}-${selectedValue}-${key}`]: values[`${fieldId}-${selectedValue}-${key}`]
-              }), {})
-            },
-            renderValue,
-            renderPlaceholder,
-            `${fieldId}-expansion-${valueIndex}`
-          );
-
-          // Add expansion sentence to result
-          if (valueIndex === 0) {
-            result.push(
-              <React.Fragment key={`expansion-separator-${fieldId}-${valueIndex}`}>
-                <span>: </span>
-              </React.Fragment>
-            );
-          }
-
-          result = [...result, ...expansionSentence];
-
-          // Add proper punctuation
-          const needsPeriod = !mapping.sentence.trim().match(/[.!?]$/);
-          if (needsPeriod) {
-            result.push(
-              <React.Fragment key={`expansion-period-${fieldId}-${valueIndex}`}>
-                <span>. </span>
-              </React.Fragment>
-            );
-          }
-
-          // Add separator between multiple values
-          if (valueIndex < selectedValues.length - 1) {
-            result.push(
-              <React.Fragment key={`expansion-separator-${fieldId}-${valueIndex}-end`}>
-                <span> </span>
-              </React.Fragment>
-            );
-          }
-        }
-      });
-    }
   });
 
   return result;
@@ -502,95 +433,51 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     event.preventDefault();
     event.stopPropagation();
     
-    const currentValue = values[field.id];
+    // Get the field ID - this could be either a regular field or an expansion field
+    const fieldId = field.id;
     
-    // Initialize otherValue based on field type and current value
-    if (field.type === 'multiSelect') {
-      const selectedValues = Array.isArray(currentValue) 
-        ? currentValue 
-        : currentValue?._selectedValues || [];
-      
-      setOtherValue(selectedValues);
-      setMenuState({ fieldId: field.id, anchorPosition: null, isOpen: false });
-      setOpenDialog(true);
-      return;
-    }
-    
-    setOtherValue(currentValue?.toString() || '');
-    
-    if (field.type === 'select') {
-      const rect = event.currentTarget.getBoundingClientRect();
-      setMenuState({
-        fieldId: field.id,
-        anchorPosition: {
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX
-        },
-        isOpen: true
-      });
-    } else {
-      setMenuState({ fieldId: field.id, anchorPosition: null, isOpen: false });
-      setOpenDialog(true);
-    }
-  }, [isDocumentPreview, values]);
+    // For all field types, use AutocompleteText directly
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuState({
+      fieldId: fieldId,
+      anchorPosition: {
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX
+      },
+      isOpen: true
+    });
+  }, [isDocumentPreview]);
 
   const handleClose = useCallback(() => {
     setMenuState(prev => ({ ...prev, isOpen: false }));
-    setOpenDialog(false);
   }, []);
 
   const handleOptionSelect = useCallback((value: string) => {
     if (!menuState.fieldId) return;
 
     // Check if this is an expansion field
-    const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId.split('-');
-    if (expansionFieldId) {
+    const isExpansionField = menuState.fieldId.includes('-');
+    if (isExpansionField) {
       // This is an expansion field
+      const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId.split('-');
       const field = EXPANSION_FIELDS[expansionFieldId];
-      if (field?.type === 'multiSelect') {
-        const currentValues = Array.isArray(values[menuState.fieldId])
-          ? values[menuState.fieldId]
-          : values[menuState.fieldId]?._selectedValues || [];
-        
-        const newValues = currentValues.includes(value)
-          ? currentValues.filter((v: string) => v !== value)
-          : [...currentValues, value];
-        
-        onUpdate(menuState.fieldId, newValues);
-        setOtherValue(newValues); // Update otherValue to match the new selection
-        return;
+      if (field) {
+        onUpdate(menuState.fieldId, value);
       }
-      onUpdate(menuState.fieldId, value);
-      handleClose();
       return;
     }
 
     const field = section.fields.find(f => f.id === menuState.fieldId);
     if (!field) return;
 
-    if (value === 'other') {
-      setOpenDialog(true);
-      return;
-    }
-
+    // For multiSelect fields, handle array values
     if (field.type === 'multiSelect') {
-      const currentValues = Array.isArray(values[field.id])
-        ? values[field.id]
-        : values[field.id]?._selectedValues || [];
-
-      const newValues = currentValues.includes(value)
-        ? currentValues.filter((v: string) => v !== value)
-        : [...currentValues, value];
-
-      onUpdate(field.id, newValues);
-      setOtherValue(newValues); // Update otherValue to match the new selection
-      // Don't close the menu for multiSelect to allow multiple selections
-      return;
+      const values = Array.isArray(value) ? value : [value];
+      onUpdate(field.id, values);
+    } else {
+      onUpdate(field.id, value);
     }
-
-    onUpdate(field.id, value);
-    handleClose();
-  }, [menuState.fieldId, section.fields, values, onUpdate, handleClose]);
+  }, [menuState.fieldId, section.fields, onUpdate]);
 
   const formatList = (items: string[]): string => {
     if (!items || items.length === 0) return '';
@@ -599,41 +486,24 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
   };
 
-  const handleOtherSubmit = () => {
-    if (menuState.fieldId) {
-      const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId.split('-');
-      const field = expansionFieldId 
-        ? EXPANSION_FIELDS[expansionFieldId]
-        : section.fields.find(f => f.id === menuState.fieldId);
-
-      if (field?.type === 'multiSelect') {
-        // For multi-select, handle both predefined and custom values
-        const values = Array.isArray(otherValue) 
-          ? otherValue.map(val => {
-              // Check if this is a predefined option
-              const option = field.options?.find(opt => opt.value === val || opt.label === val);
-              if (option) return option.value;
-              // If not, it's a custom entry - ensure it's in snake_case
-              return val.toLowerCase().replace(/\s+/g, '_');
-            })
-          : [];
-        
-        onUpdate(menuState.fieldId, values);
-      } else if (field?.type === 'select') {
-        // For single select, find the option with matching label
-        const option = field.options?.find(opt => opt.label === otherValue);
-        const value = option ? option.value : otherValue;
-        onUpdate(menuState.fieldId, value);
-      } else {
-        // For other types, just use the value as is
-        const value = typeof otherValue === 'string' ? otherValue.trim() : otherValue;
-        onUpdate(menuState.fieldId, value);
-      }
-      setOtherValue('');
-      setCustomValue('');
-      setOpenDialog(false);
-      setMenuState(prev => ({ ...prev, isOpen: false }));
+  const getDisplayValue = (value: string, field: Field): string => {
+    if (!value) return '';
+    
+    // For predefined options, use the label
+    if (field.options) {
+      const option = field.options.find(opt => opt.value === value);
+      if (option) return option.label;
     }
+    
+    // For custom values in display:snake_case format
+    if (value.includes(':')) {
+      return value.split(':')[0];
+    }
+    
+    // For legacy values, convert from snake_case
+    return value.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
   };
 
   const handleExpansionUpdate = (fieldId: string, value: any) => {
@@ -699,7 +569,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
                     required={expansionField.required}
                     helperText={expansionField.description}
                     multiple={false}
-                    freeSolo={true}
+                    allowOther={expansionField.allowOther}
                   />
                 </Box>
               );
@@ -743,64 +613,68 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
   };
 
   const renderValue = (field: Field, value: any) => {
+    // Check if this is an expansion field
+    const isExpansionField = field.id.includes('-');
+    let currentField = field;
+    
+    if (isExpansionField) {
+      const [parentFieldId, selectedValue, expansionFieldId] = field.id.split('-');
+      const globalExpansionField = EXPANSION_FIELDS[expansionFieldId];
+      if (globalExpansionField) {
+        currentField = {
+          ...globalExpansionField,
+          id: field.id,
+          type: globalExpansionField.type,
+          label: globalExpansionField.label || '',
+          options: globalExpansionField.options || [],
+          allowOther: globalExpansionField.allowOther
+        } as Field;
+      }
+    }
+
     const displayValue = (() => {
-      if (field.type === 'select' || field.type === 'radio') {
-        const option = field.options?.find(opt => opt.value === value);
-        return option?.label || value;
+      if (currentField.type === 'select' || currentField.type === 'radio') {
+        return getDisplayValue(value, currentField);
       }
 
-      if (field.type === 'multiSelect') {
-        const selectedValues = Array.isArray(value) ? value : value?._selectedValues;
+      if (currentField.type === 'multiSelect') {
+        const selectedValues = Array.isArray(value) ? value : value?._selectedValues || [];
         if (!selectedValues || selectedValues.length === 0) {
-          return field.placeholder?.replace(/[\[\]]/g, '') || field.label;
+          return currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
         }
         
         // Get all selected options and format them properly
-        const selectedOptions = selectedValues.map((val: string) => {
-          const option = field.options?.find(opt => opt.value === val);
-          return option?.label || val.split('_').map((word: string) => 
-            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          ).join(' ');
-        });
+        const selectedOptions = selectedValues.map((val: string) => getDisplayValue(val, currentField));
         
         // Format the list with proper grammar
-        if (selectedOptions.length === 0) {
-          return field.placeholder?.replace(/[\[\]]/g, '') || field.label;
-        }
-        if (selectedOptions.length === 1) {
-          return selectedOptions[0];
-        }
-        if (selectedOptions.length === 2) {
-          return `${selectedOptions[0]} and ${selectedOptions[1]}`;
-        }
-        return `${selectedOptions.slice(0, -1).join(', ')}, and ${selectedOptions[selectedOptions.length - 1]}`;
+        return formatList(selectedOptions);
       }
 
-      if (field.type === 'text' || field.type === 'textArea') {
+      if (currentField.type === 'text' || currentField.type === 'textArea') {
         if (isDocumentPreview || readingMode) {
-          return value || `[${field.placeholder || field.label}]`;
+          return value || `[${currentField.placeholder || currentField.label}]`;
         }
-        return value || field.placeholder?.replace(/[\[\]]/g, '') || field.label;
+        return value || currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
       }
 
       if (isDocumentPreview || readingMode) {
-        return value || `[${field.placeholder || field.label}]`;
+        return value || `[${currentField.placeholder || currentField.label}]`;
       }
-      return value || field.placeholder?.replace(/[\[\]]/g, '') || field.label;
+      return value || currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
     })();
 
     if (isDocumentPreview || readingMode) {
-      return <span key={`value-${field.id}`}>{displayValue}</span>;
+      return <span key={`value-${currentField.id}`}>{displayValue}</span>;
     }
 
-    const isEmptyMultiSelect = field.type === 'multiSelect' && 
+    const isEmptyMultiSelect = currentField.type === 'multiSelect' && 
       (!value || (Array.isArray(value) && value.length === 0) || 
        (value?._selectedValues && value._selectedValues.length === 0));
 
     return (
       <Box
         component="div"
-        key={`value-container-${field.id}`}
+        key={`value-container-${currentField.id}`}
         sx={{ 
           display: 'inline',
           maxWidth: 'fit-content',
@@ -810,9 +684,9 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
         }}
       >
         <Box
-          key={`value-box-${field.id}`}
+          key={`value-box-${currentField.id}`}
           component="span"
-          onClick={(e) => handleClick(e, field)}
+          onClick={(e) => handleClick(e, currentField)}
           sx={{
             cursor: 'pointer',
             display: 'inline',
@@ -841,9 +715,9 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
             }
           }}
         >
-          <span key={`display-value-${field.id}`}>{displayValue}</span>
+          <span key={`display-value-${currentField.id}`}>{displayValue}</span>
           <EditIcon 
-            key={`edit-icon-${field.id}`}
+            key={`edit-icon-${currentField.id}`}
             className="edit-icon" 
             sx={{
               opacity: 0,
@@ -963,7 +837,17 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
       }
 
       const fieldId = match[1];
-      const field = section.fields.find(f => f.id === fieldId);
+      // For expansion fields, we need to get the field definition from EXPANSION_FIELDS
+      const field = EXPANSION_FIELDS[fieldId] ? {
+        ...EXPANSION_FIELDS[fieldId],
+        id: fieldId,
+        label: EXPANSION_FIELDS[fieldId].label || '',
+        placeholder: EXPANSION_FIELDS[fieldId].placeholder || '',
+        type: EXPANSION_FIELDS[fieldId].type,
+        options: EXPANSION_FIELDS[fieldId].options || [],
+        allowOther: EXPANSION_FIELDS[fieldId].allowOther
+      } as DynamicField : section.fields.find(f => f.id === fieldId);
+
       if (!field) {
         result.push(<React.Fragment key={`empty-${fieldId}-${index}`} />);
         return;
@@ -984,7 +868,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
         return;
       }
 
-      // Show the clickable data sources field
+      // Show the clickable field
       result.push(
         <React.Fragment key={`value-${fieldId}-${index}`}>
           {renderValue(field, value)}
@@ -996,7 +880,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
         ? (Array.isArray(value) ? value : value?._selectedValues || [])
         : [value];
 
-      if (selectedValues?.length && field.expansionFields) {
+      if (selectedValues?.length && EXPANSION_MAPPINGS[fieldId]) {
         // Add colon before list
         result.push(
           <React.Fragment key={`expansion-intro-${fieldId}`}>
@@ -1006,44 +890,21 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
 
         // Create list container for data sources
         const listItems = selectedValues.map((selectedValue: string, valueIndex: number) => {
-          const expansionFields = field.expansionFields?.[selectedValue];
-          if (!expansionFields) return null;
-
-          // Create expansion fields object with unique IDs for this data source
-          const expansionFieldsObj = expansionFields.reduce((acc, expansionField) => ({
-            ...acc,
-            [expansionField.id]: {
-              ...expansionField,
-              id: `${fieldId}-${selectedValue}-${expansionField.id}`,
-              displayId: `${fieldId}-${selectedValue}-${expansionField.id}`,
-              placeholder: expansionField.placeholder || `[${expansionField.label}]`
-            }
-          }), {});
-
           // Get mapping for this data source
           const mapping = EXPANSION_MAPPINGS[fieldId]?.[selectedValue];
           if (!mapping?.sentence) return null;
-
-          // Create field values object with proper IDs
-          const fieldValues = Object.keys(expansionFieldsObj).reduce((acc, key) => {
-            const uniqueId = `${fieldId}-${selectedValue}-${key}`;
-            return {
-              ...acc,
-              [key]: values[uniqueId]
-            };
-          }, {});
 
           // Process the expansion sentence
           const expansionSentence = processDynamicSentence(
             {
               template: mapping.sentence,
-              fields: expansionFieldsObj,
+              fields: {},  // Fields will be handled by EXPANSION_FIELDS lookup
               branches: {}
             },
-            fieldValues,
+            values,
             renderValue,
             renderPlaceholder,
-            `${fieldId}-expansion-${valueIndex}`
+            `${fieldId}-${selectedValue}`  // Pass the full parent field ID for proper value lookup
           );
 
           return (
@@ -1090,115 +951,57 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     return result;
   };
 
-  const renderDialogContent = (field: Field) => {
-    if (field.type === 'multiSelect' || field.type === 'select' || field.type === 'autocompleteText') {
-      const currentValues = Array.isArray(otherValue) ? otherValue : [];
-      const isExpansionField = field.id.includes('-');
-      const fieldOptions = field.options || [];
-      
-      return (
-        <AutocompleteText
-          value={currentValues}
-          onChange={(value) => setOtherValue(Array.isArray(value) ? value : [value])}
-          options={fieldOptions}
-          label={field.label}
-          placeholder={field.placeholder}
-          description={field.description}
-          required={field.required}
-          helperText={field.description}
-          multiple={field.type === 'multiSelect'}
-          freeSolo={field.allowOther || field.freeSolo}
-        />
-      );
+  const renderFieldInput = (field: Field) => {
+    // Check if this is an expansion field
+    const isExpansionField = menuState.fieldId?.includes('-');
+    let currentField = field;
+    let currentValues = values[menuState.fieldId!];
+
+    if (isExpansionField) {
+      const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId!.split('-');
+      const globalExpansionField = EXPANSION_FIELDS[expansionFieldId];
+      if (globalExpansionField) {
+        currentField = {
+          ...globalExpansionField,
+          id: menuState.fieldId!,
+          type: globalExpansionField.type,
+          label: globalExpansionField.label || '',
+          options: globalExpansionField.options || [],
+          allowOther: globalExpansionField.allowOther
+        } as DynamicField;
+        // For expansion fields, we need to look up the value in the correct place
+        const fullFieldId = `${parentFieldId}-${selectedValue}-${expansionFieldId}`;
+        currentValues = values[fullFieldId];
+      }
     }
 
-    if (field.type === 'text') {
-      // For text fields, use AutocompleteText with single selection
-      const suggestions = field.suggestions || 
-        (field.id.includes('-') ? commonSuggestions[field.id.split('-').pop()!] : commonSuggestions[field.id]) || 
-        [];
-        
-      return (
-        <AutocompleteText
-          value={typeof otherValue === 'string' ? [otherValue] : []}
-          onChange={(value) => setOtherValue(value[0] || '')}
-          options={suggestions.map(s => ({ value: s, label: s }))}
-          label={field.label}
-          placeholder={field.placeholder}
-          description={field.description}
-          required={field.required}
-          helperText={field.description}
-          multiple={false}
-          freeSolo={field.freeSolo !== false}
-        />
-      );
-    }
-
-    if (field.type === 'textArea') {
-      return (
-        <TextField
-          autoFocus
-          margin="dense"
-          fullWidth
-          multiline
-          rows={4}
-          variant="outlined"
-          value={otherValue}
-          onChange={(e) => setOtherValue(e.target.value)}
-          placeholder={field.placeholder}
-          helperText={field.description}
-        />
-      );
-    }
-
-    if (field.type === 'number') {
-      return (
-        <TextField
-          autoFocus
-          margin="dense"
-          fullWidth
-          type="number"
-          variant="outlined"
-          value={otherValue}
-          onChange={(e) => setOtherValue(e.target.value)}
-          placeholder={field.placeholder}
-          helperText={field.description}
-          inputProps={{
-            min: field.validation?.find(v => v.type === 'min')?.value,
-            max: field.validation?.find(v => v.type === 'max')?.value,
-          }}
-        />
-      );
-    }
-
-    if (field.type === 'date') {
-      return (
-        <TextField
-          autoFocus
-          margin="dense"
-          fullWidth
-          type="date"
-          variant="outlined"
-          value={otherValue}
-          onChange={(e) => setOtherValue(e.target.value)}
-          helperText={field.description}
-          InputLabelProps={{
-            shrink: true,
-          }}
-        />
-      );
-    }
-
+    // Convert current values to array format for AutocompleteText
+    const valueArray = (() => {
+      if (!currentValues) return [];
+      if (Array.isArray(currentValues)) return currentValues;
+      if (typeof currentValues === 'string') return [currentValues];
+      if (currentValues?._selectedValues) return currentValues._selectedValues;
+      return [];
+    })();
+    
     return (
-      <TextField
-        autoFocus
-        margin="dense"
-        fullWidth
-        variant="outlined"
-        value={otherValue}
-        onChange={(e) => setOtherValue(e.target.value)}
-        placeholder={field.placeholder}
-        helperText={field.description}
+      <AutocompleteText
+        value={valueArray}
+        onChange={(newValues) => {
+          if (currentField.type === 'multiSelect') {
+            onUpdate(menuState.fieldId!, newValues);
+          } else {
+            onUpdate(menuState.fieldId!, newValues[0] || '');
+          }
+        }}
+        options={currentField.options || []}
+        label={currentField.label}
+        placeholder={currentField.placeholder || "Type to search..."}
+        description={currentField.description}
+        required={currentField.required}
+        helperText={currentField.description}
+        multiple={currentField.type === 'multiSelect'}
+        allowOther={currentField.allowOther !== false}
       />
     );
   };
@@ -1313,141 +1116,40 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
               <Paper
                 elevation={8}
                 sx={{
-                  maxHeight: 300,
-                  width: 'auto',
-                  maxWidth: 'none',
+                  width: 400,
+                  maxWidth: '90vw',
                   mt: 1,
-                  overflow: 'auto'
+                  p: 2
                 }}
               >
-                <MenuList
-                  autoFocus
-                  id={`menu-${menuState.fieldId}`}
-                  aria-labelledby={`menu-button-${menuState.fieldId}`}
-                  sx={{ p: 0 }}
-                >
-                  {(() => {
-                    // Check if this is an expansion field
-                    const isExpansionField = menuState.fieldId.includes('-') && 
-                      EXPANSION_FIELDS[menuState.fieldId.split('-').pop()!];
-                    
-                    const field = isExpansionField 
-                      ? EXPANSION_FIELDS[menuState.fieldId.split('-').pop()!]
-                      : section.fields.find(f => f.id === menuState.fieldId);
-
-                    if (!field?.options) return null;
-
-                    return field.options.map((option) => {
-                      const currentValues = Array.isArray(values[menuState.fieldId!]) 
-                        ? values[menuState.fieldId!] 
-                        : values[menuState.fieldId!]?._selectedValues || [];
-                      const isSelected = currentValues.includes(option.value);
-                      
-                      return (
-                        <MenuItem
-                          key={option.value}
-                          onClick={() => handleOptionSelect(option.value)}
-                          selected={isSelected}
-                          sx={{
-                            minWidth: 300,
-                            py: 1.5,
-                            px: 2,
-                            whiteSpace: 'normal',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 1,
-                            '&:hover': {
-                              bgcolor: 'action.hover'
-                            }
-                          }}
-                        >
-                          <Checkbox
-                            icon={<CheckBoxOutlineBlank />}
-                            checkedIcon={<CheckBox />}
-                            checked={isSelected}
-                            sx={{ pt: 0 }}
-                          />
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="body1" noWrap>
-                              {option.label}
-                            </Typography>
-                            {option.description && (
-                              <Typography 
-                                variant="body2" 
-                                color="text.secondary" 
-                                sx={{ 
-                                  mt: 0.5,
-                                  whiteSpace: 'normal',
-                                  lineHeight: 1.3
-                                }}
-                              >
-                                {option.description}
-                              </Typography>
-                            )}
-                          </Box>
-                        </MenuItem>
-                      );
-                    });
-                  })()}
-                  {(() => {
-                    const isExpansionField = menuState.fieldId.includes('-') && 
-                      EXPANSION_FIELDS[menuState.fieldId.split('-').pop()!];
-                    
-                    const field = isExpansionField 
-                      ? EXPANSION_FIELDS[menuState.fieldId.split('-').pop()!]
-                      : section.fields.find(f => f.id === menuState.fieldId);
-
-                    return field?.allowOther && (
-                      <MenuItem onClick={() => handleOptionSelect('other')}>
-                        Other...
-                      </MenuItem>
-                    );
-                  })()}
-                </MenuList>
+                {menuState.fieldId && (() => {
+                  // Check if this is an expansion field
+                  const isExpansionField = menuState.fieldId.includes('-');
+                  if (isExpansionField) {
+                    const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId.split('-');
+                    const globalExpansionField = EXPANSION_FIELDS[expansionFieldId];
+                    if (globalExpansionField) {
+                      const field = {
+                        ...globalExpansionField,
+                        id: menuState.fieldId,
+                        type: globalExpansionField.type,
+                        label: globalExpansionField.label || '',
+                        options: globalExpansionField.options || [],
+                        allowOther: globalExpansionField.allowOther
+                      } as Field;
+                      return renderFieldInput(field);
+                    }
+                  }
+                  // If not an expansion field, look in section fields
+                  const field = section.fields.find(f => f.id === menuState.fieldId);
+                  if (!field) return null;
+                  return renderFieldInput(field);
+                })()}
               </Paper>
             </ClickAwayListener>
           </div>
         </div>
       )}
-
-      <Dialog open={openDialog} onClose={handleClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {menuState.fieldId && section.fields.find(f => f.id === menuState.fieldId)?.label}
-          {menuState.fieldId && section.fields.find(f => f.id === menuState.fieldId)?.description && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {section.fields.find(f => f.id === menuState.fieldId)?.description}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent>
-          {menuState.fieldId && (() => {
-            // Check if this is an expansion field
-            const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId.split('-');
-            const field = expansionFieldId 
-              ? EXPANSION_FIELDS[expansionFieldId]
-              : section.fields.find(f => f.id === menuState.fieldId);
-            
-            if (!field) return null;
-            return renderDialogContent({
-              ...field,
-              id: menuState.fieldId,
-              type: field.type || 'text',
-              label: field.label || 'Input'
-            });
-          })()}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} color="inherit">Cancel</Button>
-          <Button 
-            onClick={handleOtherSubmit} 
-            variant="contained" 
-            color="primary"
-            disabled={Array.isArray(otherValue) ? otherValue.length === 0 : !otherValue.trim()}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
       
       <NarrativePreviewModal
         isOpen={isModulePreviewOpen}

@@ -1,25 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Autocomplete,
-  TextField,
-  Box,
-  Chip,
-  Typography,
-  Checkbox,
-  createFilterOptions,
-  Paper,
-  Popper,
-  InputAdornment,
-  IconButton,
-} from '@mui/material';
-import { CheckBoxOutlineBlank, CheckBox, Add as AddIcon, Clear as ClearIcon } from '@mui/icons-material';
+import React, { useState } from 'react';
+import { Autocomplete, TextField, Box, Typography, Popper } from '@mui/material';
 
 interface Option {
   value: string;
   label: string;
   description?: string;
-  inputValue?: string;
-  isCustom?: boolean;
 }
 
 interface AutocompleteTextProps {
@@ -33,266 +18,297 @@ interface AutocompleteTextProps {
   helperText?: string;
   multiple?: boolean;
   allowOther?: boolean;
-  freeSolo?: boolean;
 }
 
-const filter = createFilterOptions<Option>();
-
 export const AutocompleteText: React.FC<AutocompleteTextProps> = ({
-  value,
+  value = [],
   onChange,
-  options: initialOptions,
+  options,
   label,
   placeholder,
   description,
   required,
   helperText,
   multiple = false,
-  allowOther = false,
-  freeSolo = false,
+  allowOther = true,
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [localOptions, setLocalOptions] = useState<Option[]>(initialOptions);
-  const [searchValue, setSearchValue] = useState('');
 
-  useEffect(() => {
-    const customOptions = value
-      .filter(val => val && val.trim() && !initialOptions.some(opt => opt.value === val))
-      .map(val => ({
-        value: val,
-        label: val.split('_').map((word: string) => 
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        ).join(' '),
-        isCustom: true
-      }));
-
-    setLocalOptions([...initialOptions, ...customOptions]);
-
-    // For single select, set the input value to the selected option's label
-    if (!multiple && value.length > 0) {
-      const selectedOption = [...initialOptions, ...customOptions].find(opt => opt.value === value[0]);
-      setInputValue(selectedOption?.label || value[0]);
-    }
-  }, [value, initialOptions, multiple]);
-
-  const handleOptionToggle = (optionValue: string) => {
-    if (multiple) {
-      const newValue = value.includes(optionValue)
-        ? value.filter(v => v !== optionValue)
-        : [...value, optionValue];
-      onChange(newValue);
-    } else {
-      const isSameValue = value[0] === optionValue;
-      onChange(isSameValue ? [] : [optionValue]);
-      setSearchValue(''); // Clear search value after selection
-      
-      // For single select, update input value with selected option's label
-      if (!isSameValue) {
-        const selectedOption = localOptions.find(opt => opt.value === optionValue);
-        setInputValue(selectedOption?.label || optionValue);
-      } else {
-        setInputValue('');
-      }
-    }
-  };
-
-  const handleAddCustom = () => {
-    if (!searchValue.trim()) return;
-
-    const snakeCaseValue = searchValue.toLowerCase().replace(/\s+/g, '_');
-    const displayLabel = searchValue.split(' ').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  // Convert snake_case to display format
+  const toDisplayFormat = (value: string) => {
+    return value.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
-
-    const newOption = {
-      value: snakeCaseValue,
-      label: displayLabel,
-      isCustom: true
-    };
-
-    setLocalOptions(prev => [...prev, newOption]);
-    handleOptionToggle(snakeCaseValue);
-    setSearchValue('');
   };
 
-  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value;
-    if (multiple || (!multiple && value.length === 0)) {
-      setSearchValue(newValue);
-    }
+  // Convert display format to snake_case
+  const toSnakeCase = (value: string) => {
+    return value.toLowerCase().replace(/\s+/g, '_');
   };
 
-  const handleKeyPress = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && freeSolo && searchValue.trim()) {
-      event.preventDefault();
-      handleAddCustom();
-    }
+  // Get display value for a stored value
+  const getDisplayValue = (storedValue: string) => {
+    const predefinedOption = options.find(opt => opt.value === storedValue);
+    if (predefinedOption) return predefinedOption.label;
+    return toDisplayFormat(storedValue);
   };
-
-  const handleClearSelection = () => {
-    onChange([]);
-    setInputValue('');
-    setSearchValue('');
-  };
-
-  const filteredOptions = localOptions.filter(option =>
-    option.label.toLowerCase().includes(searchValue.toLowerCase()) ||
-    option.description?.toLowerCase().includes(searchValue.toLowerCase())
-  );
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 600 }}>
-      <TextField
-        fullWidth
-        value={multiple ? searchValue : inputValue}
-        onChange={handleInputChange}
-        onKeyPress={handleKeyPress}
-        placeholder={placeholder || (multiple ? "Type to filter or add new..." : "Select or type to add new...")}
-        label={label}
-        required={required}
-        helperText={helperText}
-        InputProps={{
-          readOnly: !multiple && value.length > 0,
-          endAdornment: (
-            <InputAdornment position="end">
-              {(multiple ? searchValue : value.length > 0) && (
-                <>
-                  {freeSolo && searchValue && (
-                    <IconButton
-                      size="small"
-                      onClick={handleAddCustom}
-                      title="Add custom value"
-                    >
-                      <AddIcon />
-                    </IconButton>
-                  )}
-                  <IconButton
-                    size="small"
-                    onClick={multiple ? () => setSearchValue('') : handleClearSelection}
-                    title={multiple ? "Clear search" : "Clear selection"}
+    <Box>
+      <Autocomplete
+        multiple={multiple}
+        freeSolo={allowOther}
+        options={options}
+        value={value}
+        inputValue={inputValue}
+        onInputChange={(event, newInputValue) => {
+          setInputValue(newInputValue);
+        }}
+        disableCloseOnSelect={true}
+        openOnFocus={true}
+        autoComplete={true}
+        autoHighlight={true}
+        open={isOpen}
+        onOpen={() => {
+          setIsOpen(true);
+          setInputValue('');
+        }}
+        onClose={(event, reason) => {
+          if (reason === 'escape' || (reason === 'blur' && !event.currentTarget.contains(document.activeElement))) {
+            setIsOpen(false);
+          }
+        }}
+        componentsProps={{
+          paper: {
+            elevation: 8,
+            sx: {
+              width: '100%',
+              mt: 1,
+              borderRadius: 1,
+            }
+          }
+        }}
+        filterOptions={(options, params) => {
+          const filtered = params.inputValue === ''
+            ? options // Show all options when input is empty
+            : options.filter(option => {
+                const label = typeof option === 'string' ? option : option.label;
+                return label.toLowerCase().includes(params.inputValue.toLowerCase());
+              });
+          
+          if (allowOther && params.inputValue !== '' && !filtered.some(option => 
+            (typeof option === 'string' ? option : option.label).toLowerCase() === params.inputValue.toLowerCase()
+          )) {
+            filtered.push(params.inputValue);
+          }
+          
+          return filtered;
+        }}
+        PopperComponent={props => (
+          <Popper
+            {...props}
+            placement="bottom-start"
+            modifiers={[
+              {
+                name: 'offset',
+                options: {
+                  offset: [0, 8],
+                },
+              },
+            ]}
+          />
+        )}
+        isOptionEqualToValue={(option: Option | string, value: string | Option) => {
+          if (!option || !value) return false;
+          if (typeof value === 'string') {
+            const optionValue = typeof option === 'string' ? option : option.value;
+            return optionValue === value || (value.includes(':') && optionValue === value.split(':')[1]);
+          }
+          return (option as Option).value === value.value;
+        }}
+        onChange={(event, newValue, reason, details) => {
+          if (reason === 'selectOption' || reason === 'removeOption') {
+            setIsOpen(true);
+          }
+
+          if (!multiple) {
+            if (!newValue) {
+              onChange([]);
+              return;
+            }
+            if (typeof newValue === 'string') {
+              const option = options.find(opt => 
+                opt.value === newValue || 
+                opt.label.toLowerCase() === newValue.toLowerCase()
+              );
+              if (option) {
+                onChange([option.value]);
+                return;
+              }
+              onChange([`${newValue}:${toSnakeCase(newValue)}`]);
+              return;
+            }
+            if ('value' in newValue) {
+              onChange([newValue.value]);
+            }
+            return;
+          }
+
+          const processedValues = (Array.isArray(newValue) ? newValue : [newValue])
+            .filter(Boolean)
+            .map(val => {
+              if (typeof val === 'string') {
+                const option = options.find(opt => 
+                  opt.value === val || 
+                  opt.label.toLowerCase() === val.toLowerCase()
+                );
+                if (option) return option.value;
+                return `${val}:${toSnakeCase(val)}`;
+              }
+              return val?.value || '';
+            })
+            .filter(Boolean);
+          onChange(processedValues);
+        }}
+        getOptionLabel={(option) => {
+          if (!option) return '';
+          if (typeof option === 'string') {
+            if (option.includes(':')) {
+              return option.split(':')[0] || '';
+            }
+            const predefinedOption = options.find(opt => opt.value === option);
+            if (predefinedOption) return predefinedOption.label;
+            return getDisplayValue(option) || '';
+          }
+          return option.label || '';
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label={label}
+            placeholder={allowOther ? "Type to search or add custom..." : "Type to search..."}
+            required={required}
+            onClick={() => {
+              setIsOpen(true);
+              setInputValue('');
+            }}
+            onFocus={() => {
+              setIsOpen(true);
+              setInputValue('');
+            }}
+            helperText={
+              <>
+                {helperText && (
+                  <Typography variant="caption" component="span" display="block">
+                    {helperText}
+                  </Typography>
+                )}
+                {allowOther && (
+                  <Typography 
+                    variant="caption" 
+                    component="span"
+                    color="secondary"
+                    sx={{ 
+                      display: 'block', 
+                      mt: helperText ? 0.5 : 0,
+                      fontStyle: 'italic'
+                    }}
                   >
-                    <ClearIcon />
-                  </IconButton>
-                </>
-              )}
-            </InputAdornment>
-          ),
-        }}
-      />
-
-      {multiple && value.length > 0 && (
-        <Box sx={{ mt: 1, mb: 2, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {value.map(val => {
-            const option = localOptions.find(opt => opt.value === val);
-            return (
-              <Chip
-                key={val}
-                label={option?.label || val}
-                onDelete={() => handleOptionToggle(val)}
-                sx={{
-                  backgroundColor: 'primary.light',
-                  color: 'primary.contrastText',
-                  '& .MuiChip-deleteIcon': {
-                    color: 'primary.contrastText',
-                  },
-                }}
-              />
-            );
-          })}
-        </Box>
-      )}
-
-      <Paper 
-        elevation={2}
-        sx={{ 
-          mt: 1,
-          maxHeight: 300,
-          overflowY: 'auto',
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        {filteredOptions.map(option => (
-          <Box
-            key={option.value}
-            onClick={() => handleOptionToggle(option.value)}
+                    Type to add a custom value
+                  </Typography>
+                )}
+              </>
+            }
             sx={{
-              p: 1,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 1,
+              '& .MuiInputBase-root': {
+                backgroundColor: 'background.paper',
+              },
+            }}
+          />
+        )}
+        renderOption={(props, option: Option | string, { selected }) => {
+          const { key, ...otherProps } = props;
+          let displayText = '';
+          let description = '';
+          let isSelected = selected;
+          
+          if (typeof option === 'string') {
+            displayText = `Add "${option}"`;
+          } else {
+            displayText = option.label || '';
+            description = option.description || '';
+            isSelected = value.some(v => {
+              if (v.includes(':')) {
+                return v.split(':')[1] === option.value;
+              }
+              return v === option.value;
+            });
+          }
+          
+          return (
+            <Box 
+              component="li" 
+              key={key} 
+              {...otherProps}
+              sx={{
+                backgroundColor: isSelected ? 'primary.light' : 'transparent',
+                '&:hover': {
+                  backgroundColor: isSelected ? 'primary.light' : 'action.hover',
+                },
+                '&.Mui-focused': {
+                  backgroundColor: isSelected ? 'primary.light' : 'action.hover',
+                },
+                py: 1.5,
+                px: 2,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {typeof option === 'string' && (
+                  <Typography 
+                    variant="body2" 
+                    color="secondary.main"
+                    sx={{ mr: 1, fontSize: '1.2em' }}
+                  >
+                    +
+                  </Typography>
+                )}
+                <Box>
+                  <Typography 
+                    variant="body1"
+                    sx={{
+                      fontWeight: isSelected ? 500 : 400,
+                      color: isSelected ? 'primary.dark' : 'text.primary',
+                    }}
+                  >
+                    {displayText}
+                  </Typography>
+                  {description && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {description}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+          );
+        }}
+        ListboxProps={{
+          sx: {
+            maxHeight: '300px',
+            border: '1px solid',
+            borderColor: 'divider',
+            boxShadow: 1,
+            '& .MuiAutocomplete-option': {
               borderBottom: '1px solid',
               borderColor: 'divider',
               '&:last-child': {
                 borderBottom: 'none',
               },
-              '&:hover': {
-                backgroundColor: 'action.hover',
-              },
-              ...(value.includes(option.value) && {
-                backgroundColor: 'primary.lighter',
-              }),
-            }}
-          >
-            {multiple ? (
-              <Checkbox
-                checked={value.includes(option.value)}
-                icon={<CheckBoxOutlineBlank />}
-                checkedIcon={<CheckBox />}
-                sx={{ pt: 0 }}
-              />
-            ) : (
-              <Box
-                sx={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  border: '2px solid',
-                  borderColor: value.includes(option.value) ? 'primary.main' : 'action.disabled',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  mr: 1,
-                }}
-              >
-                {value.includes(option.value) && (
-                  <Box
-                    sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      backgroundColor: 'primary.main',
-                    }}
-                  />
-                )}
-              </Box>
-            )}
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="body1">
-                {option.label}
-              </Typography>
-              {option.description && (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mt: 0.5, lineHeight: 1.3 }}
-                >
-                  {option.description}
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        ))}
-        {filteredOptions.length === 0 && (
-          <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-            {freeSolo 
-              ? "No matches found. Press Enter or click + to add a custom value."
-              : "No matches found."
-            }
-          </Box>
-        )}
-      </Paper>
+            },
+          },
+        }}
+      />
     </Box>
   );
 }; 
