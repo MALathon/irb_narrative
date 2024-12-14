@@ -12,9 +12,6 @@ export interface Option {
   value: string;
   label: string;
   description?: string;
-  triggers?: {
-    showFields: string[];
-  };
 }
 
 export interface ValidationStatus {
@@ -46,23 +43,65 @@ export interface DependsOn {
   operator?: 'equals' | 'contains' | 'not' | 'in' | 'exists';
 }
 
+export interface OptionType {
+  value: string;
+  label: string;
+  description?: string;
+}
+
 export interface Field {
   id: string;
-  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox';
+  type: 'text' | 'textArea' | 'select' | 'multiSelect' | 'number' | 'date' | 'radio' | 'checkbox' | 'autocompleteText' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
+  label: string;
+  placeholder?: string;
+  description?: string;
+  helpText?: string;
+  options?: Option[];
+  allowOther?: boolean;
+  freeSolo?: boolean;
+  suggestions?: string[];
+  validation?: {
+    type: string;
+    value: any;
+    message?: string;
+  }[];
+  required?: boolean;
+  optional?: boolean;
+  dependsOn?: {
+    fieldId: string;
+    value: any;
+    operator: 'equals' | 'contains';
+  };
+  expansionFields?: {
+    [key: string]: Field[];
+  };
+}
+
+export interface DynamicField {
+  id: string;
+  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText';
   label: string;
   placeholder?: string;
   description?: string;
   options?: Option[];
+  expansionFields?: {
+    [key: string]: ExpansionField[];
+  };
   allowOther?: boolean;
-  optional?: boolean;
+  freeSolo?: boolean;
+  suggestions?: string[];
+  validation?: {
+    type: string;
+    value: any;
+    message?: string;
+  }[];
   required?: boolean;
-  hidden?: boolean;
-  noLabel?: boolean;
-  helpText?: string;
-  validation?: Validation[];
-  dependsOn?: DependsOn;
-  expansionFields?: { [key: string]: Field[] };
-  generateText?: (values: any) => string;
+  optional?: boolean;
+  dependsOn?: {
+    fieldId: string;
+    value: any;
+    operator: 'equals' | 'contains';
+  };
 }
 
 export interface NarrativeSection {
@@ -70,19 +109,10 @@ export interface NarrativeSection {
   moduleId: string;
   moduleName: string;
   title: string;
-  description?: string;
+  description: string;
   guidance?: string;
   template: string;
   fields: Field[];
-  dynamicContent?: {
-    condition: {
-      fieldId: string;
-      value: any;
-      operator?: string;
-    };
-    content: string;
-  }[];
-  conditionalSections?: NarrativeSection[];
 }
 
 export interface NarrativeModule {
@@ -99,4 +129,15 @@ export interface NarrativeSchema {
     institution: string;
     type: string;
   };
+}
+
+export interface ExpansionField {
+  id: string;
+  type: string;
+  label: string;
+  placeholder?: string;
+  description?: string;
+  options?: Option[];
+  validation?: Validation[];
+  required?: boolean;
 } 

@@ -1,24 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Select,
-  TextField,
-  InputAdornment,
-  IconButton,
   Typography,
   useTheme,
-  Chip,
   MenuItem,
   FormControl,
   OutlinedInput,
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  Edit as EditIcon,
-  Close as CloseIcon,
-} from '@mui/icons-material';
 
 import { DynamicField } from './DynamicField';
+import { AutocompleteText } from './AutocompleteText';
 import { NarrativeSection, Field } from '../types/narrative';
 
 interface OptionType {
@@ -66,6 +58,25 @@ export const DynamicNarrativeSection: React.FC<DynamicNarrativeSectionProps> = (
     const isError = Boolean(errors?.[field.id]?.length);
     const options = field.options ?? [];
 
+    if (isMultiSelect) {
+      return (
+        <Box sx={{ display: 'inline-block', minWidth: 120 }}>
+          <AutocompleteText
+            value={selectedValues}
+            onChange={(newValue) => handleSelect(field.id, newValue)}
+            options={options}
+            label={field.label}
+            placeholder={field.placeholder}
+            description={field.description}
+            required={field.required}
+            helperText={field.helpText}
+            multiple={true}
+            allowOther={field.allowOther}
+          />
+        </Box>
+      );
+    }
+
     const getOptionLabel = (val: string) => {
       const opt = options.find(opt => opt.value === val);
       return opt?.label || val;
@@ -86,8 +97,7 @@ export const DynamicNarrativeSection: React.FC<DynamicNarrativeSectionProps> = (
         }}
       >
         <Select
-          multiple={isMultiSelect}
-          value={isMultiSelect ? selectedValues : value || ''}
+          value={value || ''}
           onChange={(event) => {
             const newValue = event.target.value;
             handleSelect(field.id, newValue);
@@ -104,35 +114,8 @@ export const DynamicNarrativeSection: React.FC<DynamicNarrativeSectionProps> = (
             />
           }
           renderValue={(selected) => {
-            if (!selected || (Array.isArray(selected) && selected.length === 0)) {
+            if (!selected) {
               return <Typography color="primary">{field.placeholder}</Typography>;
-            }
-            if (isMultiSelect) {
-              return (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {(selected as string[]).map((value) => (
-                    <Chip
-                      key={value}
-                      label={getOptionLabel(value)}
-                      size="small"
-                      onDelete={() => {
-                        const newValues = selectedValues.filter(v => v !== value);
-                        handleSelect(field.id, newValues);
-                      }}
-                      sx={{
-                        backgroundColor: 'primary.light',
-                        color: 'primary.contrastText',
-                        '& .MuiChip-deleteIcon': {
-                          color: 'primary.contrastText',
-                          '&:hover': {
-                            color: 'error.main',
-                          },
-                        },
-                      }}
-                    />
-                  ))}
-                </Box>
-              );
             }
             return getOptionLabel(selected as string);
           }}

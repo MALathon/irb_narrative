@@ -1,5 +1,392 @@
 import { NarrativeModule, Option } from '../types/narrative';
 
+// Define the schema first - only the data sources selection
+export const DATA_SOURCES_SCHEMA = {
+  template: "To accomplish our research objectives, we will utilize the following {data_sources}",
+  fields: {
+    data_sources: {
+      id: 'data_sources',
+      type: 'multiSelect' as const,
+      label: 'Data Sources',
+      placeholder: 'Which data sources will you use?',
+      description: 'Choose all the types of data you will need to access for your research',
+      allowOther: false,
+      options: [
+        { value: 'external_dua', label: 'external data requiring a Data Use Agreement', description: 'Data from outside organizations that requires a formal agreement to use' },
+        { value: 'public_datasets', label: 'publicly available research datasets', description: 'Data that is freely available to researchers' },
+        { value: 'internal_ehr', label: 'Mayo Clinic medical record data', description: 'Clinical data from Mayo Clinic electronic health records' },
+        { value: 'prospective_data', label: 'new data collected from Mayo Clinic patients', description: 'Data that will be gathered during this study' }
+      ],
+      expansionFields: {
+        'external_dua': [
+          {
+            id: 'external_provider',
+            type: 'text' as const,
+            label: 'External Provider',
+            placeholder: 'Enter the name of the external data provider',
+            description: 'The organization or institution providing the external data',
+            required: true
+          },
+          {
+            id: 'dua_type',
+            type: 'autocompleteText' as const,
+            label: 'DUA Type',
+            placeholder: 'What type of Data Use Agreement is needed?',
+            description: 'Select the type of agreement you will need to access this data',
+            options: [
+              { value: 'standard', label: 'standard institutional DUA', description: 'A typical agreement between research institutions' },
+              { value: 'custom', label: 'custom negotiated DUA', description: 'A specially negotiated agreement for unique requirements' },
+              { value: 'federal', label: 'federal DUA', description: 'An agreement with a federal agency like NIH or CDC' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_format',
+            type: 'multiSelect' as const,
+            label: 'Types of Data',
+            placeholder: 'What types of data will you receive?',
+            description: 'Select all the types of data included in this dataset',
+            allowOther: true,
+            options: [
+              { value: 'structured_clinical', label: 'structured medical data', description: 'Organized data like lab results, vital signs, or medications' },
+              { value: 'imaging', label: 'medical images', description: 'Images like X-rays, MRIs, or CT scans' },
+              { value: 'genomic', label: 'genetic or molecular data', description: 'DNA, RNA, or other molecular information' },
+              { value: 'textual', label: 'clinical notes and reports', description: 'Written notes from healthcare providers' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_volume',
+            type: 'select' as const,
+            label: 'Amount of Data',
+            placeholder: 'How much data will you receive?',
+            description: 'Select the approximate size of the dataset',
+            options: [
+              { value: 'small', label: 'small dataset (less than 1GB)', description: 'About the size of 200,000 pages of text' },
+              { value: 'moderate', label: 'medium dataset (1GB to 100GB)', description: 'About the size of 20 million pages of text' },
+              { value: 'large', label: 'large dataset (more than 100GB)', description: 'Larger than 20 million pages of text' }
+            ],
+            required: true
+          },
+          {
+            id: 'identifiability_level',
+            type: 'select' as const,
+            label: 'Patient Privacy Level',
+            placeholder: 'How will patient privacy be protected?',
+            description: 'Select how the data will be protected to maintain patient privacy',
+            options: [
+              { value: 'fully_deidentified', label: 'completely de-identified (no identifying information)', description: 'All personal information is removed following HIPAA guidelines' },
+              { value: 'limited_dataset', label: 'limited dataset (only dates and locations)', description: 'Contains only approved indirect identifiers like dates and zip codes' },
+              { value: 'coded', label: 'coded with protected key', description: 'Uses codes instead of names, with the key stored securely' },
+              { value: 'identifiable', label: 'contains identifying information', description: 'Contains information that could identify patients' }
+            ],
+            required: true
+          },
+          {
+            id: 'security_measures',
+            type: 'multiSelect' as const,
+            label: 'Security Measures',
+            placeholder: 'How will you protect the data?',
+            description: 'Select all the security measures that will be used',
+            allowOther: true,
+            options: [
+              { value: 'encryption', label: 'data encryption', description: 'Data is scrambled to prevent unauthorized access' },
+              { value: 'access_controls', label: 'controlled access', description: 'Only approved team members can access the data' },
+              { value: 'secure_transfer', label: 'secure data transfer', description: 'Data is protected when being moved or shared' },
+              { value: 'audit_logging', label: 'activity tracking', description: 'All data access is recorded and monitored' },
+              { value: 'phi_monitoring', label: 'privacy monitoring', description: 'Special monitoring for personal health information' }
+            ],
+            required: true
+          },
+          {
+            id: 'sensitive_categories',
+            type: 'multiSelect' as const,
+            label: 'Sensitive Information Types',
+            placeholder: 'What types of sensitive information are included?',
+            description: 'Select all types of sensitive information in the data',
+            allowOther: true,
+            options: [
+              { value: 'genetic', label: 'genetic information', description: 'Information about genes or DNA' },
+              { value: 'mental_health', label: 'mental health information', description: 'Information about mental health or psychiatric care' },
+              { value: 'substance_abuse', label: 'substance use information', description: 'Information about drug or alcohol use' },
+              { value: 'hiv', label: 'HIV/AIDS information', description: 'Information about HIV or AIDS status or treatment' },
+              { value: 'reproductive', label: 'reproductive health information', description: 'Information about pregnancy or reproductive care' },
+              { value: 'abuse', label: 'abuse-related information', description: 'Information about abuse or violence' }
+            ],
+            required: true
+          }
+        ],
+        'public_datasets': [
+          {
+            id: 'dataset_name',
+            type: 'text' as const,
+            label: 'Dataset Name',
+            placeholder: 'Enter the dataset name',
+            description: 'The official or common name of the dataset',
+            required: true,
+            freeSolo: true
+          },
+          {
+            id: 'dataset_access_type',
+            type: 'select' as const,
+            label: 'Dataset Access Level',
+            description: 'The level of access control for this dataset',
+            options: [
+              { value: 'fully_open', label: 'fully open access', description: 'Data that can be accessed without any registration or approval' },
+              { value: 'registered', label: 'available with registration', description: 'Data that requires user registration but no formal approval' },
+              { value: 'restricted', label: 'restricted access', description: 'Data that requires formal approval before access is granted' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_maintainer',
+            type: 'text' as const,
+            label: 'Data Maintainer',
+            placeholder: 'Enter the organization that maintains the data',
+            description: 'The organization responsible for maintaining and providing the dataset',
+            required: true,
+            freeSolo: true
+          },
+          {
+            id: 'data_format',
+            type: 'multiSelect' as const,
+            label: 'Data Format',
+            description: 'The format of the data',
+            allowOther: true,
+            options: [
+              { value: 'structured_clinical', label: 'structured clinical data', description: 'Organized data like lab results, vital signs, and medications' },
+              { value: 'imaging', label: 'medical imaging data', description: 'Medical images like X-rays, MRIs, and CT scans' },
+              { value: 'genomic', label: 'genomic and molecular data', description: 'Genetic and molecular information from lab tests' },
+              { value: 'textual', label: 'unstructured clinical notes', description: 'Free-text notes and reports from healthcare providers' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_volume',
+            type: 'select' as const,
+            label: 'Data Volume',
+            description: 'The approximate size of the dataset',
+            options: [
+              { value: 'small', label: 'a small dataset (less than 1GB)', description: 'Equivalent to about 200,000 pages of text' },
+              { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)', description: 'Equivalent to about 20 million pages of text' },
+              { value: 'large', label: 'a large dataset (more than 100GB)', description: 'Larger than 20 million pages of text' }
+            ],
+            required: true
+          },
+          {
+            id: 'identifiability_level',
+            type: 'select' as const,
+            label: 'Identifiability Level',
+            description: 'The level of identifiability for this dataset',
+            options: [
+              { value: 'fully_deidentified', label: 'fully de-identified using HIPAA Safe Harbor method', description: 'All personal identifiers removed following HIPAA guidelines' },
+              { value: 'limited_dataset', label: 'a Limited Dataset containing only approved indirect identifiers', description: 'Contains only dates and geographic information as allowed by HIPAA' },
+              { value: 'coded', label: 'coded with a secure key management system', description: 'Uses codes instead of identifiers with secure key storage' },
+              { value: 'identifiable', label: 'identifiable with strict access controls', description: 'Contains identifiable information with strict protections' }
+            ],
+            required: true
+          }
+        ],
+        'internal_ehr': [
+          {
+            id: 'clinical_domain',
+            type: 'multiSelect' as const,
+            label: 'Clinical Domain',
+            description: 'The medical specialties or areas covered by this data',
+            placeholder: 'Select clinical domains',
+            allowOther: true,
+            options: [
+              { value: 'pediatrics', label: 'Pediatrics', description: 'Care for children and adolescents' },
+              { value: 'cardiology', label: 'Cardiology', description: 'Heart and cardiovascular system care' },
+              { value: 'oncology', label: 'Oncology', description: 'Cancer diagnosis and treatment' },
+              { value: 'neurology', label: 'Neurology', description: 'Brain and nervous system disorders' },
+              { value: 'internal_medicine', label: 'Internal Medicine', description: 'General adult medical care' },
+              { value: 'psychiatry', label: 'Psychiatry', description: 'Mental health and behavioral disorders' },
+              { value: 'orthopedics', label: 'Orthopedics', description: 'Bone and joint conditions' },
+              { value: 'dermatology', label: 'Dermatology', description: 'Skin conditions and disorders' },
+              { value: 'endocrinology', label: 'Endocrinology', description: 'Hormone and metabolic disorders' },
+              { value: 'gastroenterology', label: 'Gastroenterology', description: 'Digestive system disorders' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_format',
+            type: 'multiSelect' as const,
+            label: 'Data Format',
+            description: 'The format of the data',
+            allowOther: true,
+            options: [
+              { value: 'structured_clinical', label: 'structured clinical data', description: 'Organized data like lab results, vital signs, and medications' },
+              { value: 'imaging', label: 'medical imaging data', description: 'Medical images like X-rays, MRIs, and CT scans' },
+              { value: 'genomic', label: 'genomic and molecular data', description: 'Genetic and molecular information from lab tests' },
+              { value: 'textual', label: 'unstructured clinical notes', description: 'Free-text notes and reports from healthcare providers' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_volume',
+            type: 'select' as const,
+            label: 'Data Volume',
+            description: 'The approximate size of the dataset',
+            options: [
+              { value: 'small', label: 'a small dataset (less than 1GB)', description: 'Equivalent to about 200,000 pages of text' },
+              { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)', description: 'Equivalent to about 20 million pages of text' },
+              { value: 'large', label: 'a large dataset (more than 100GB)', description: 'Larger than 20 million pages of text' }
+            ],
+            required: true
+          },
+          {
+            id: 'identifiability_level',
+            type: 'select' as const,
+            label: 'Identifiability Level',
+            description: 'The level of identifiability for this dataset',
+            options: [
+              { value: 'fully_deidentified', label: 'fully de-identified using HIPAA Safe Harbor method', description: 'All personal identifiers removed following HIPAA guidelines' },
+              { value: 'limited_dataset', label: 'a Limited Dataset containing only approved indirect identifiers', description: 'Contains only dates and geographic information as allowed by HIPAA' },
+              { value: 'coded', label: 'coded with a secure key management system', description: 'Uses codes instead of identifiers with secure key storage' },
+              { value: 'identifiable', label: 'identifiable with strict access controls', description: 'Contains identifiable information with strict protections' }
+            ],
+            required: true
+          },
+          {
+            id: 'security_measures',
+            type: 'multiSelect' as const,
+            label: 'Security Measures',
+            description: 'The security measures used to protect this data',
+            allowOther: true,
+            options: [
+              { value: 'encryption', label: 'end-to-end encryption', description: 'Data is encrypted during storage and transmission' },
+              { value: 'access_controls', label: 'role-based access controls', description: 'Access is restricted based on user roles' },
+              { value: 'secure_transfer', label: 'secure data transfer protocols', description: 'Data transfers use secure, encrypted methods' },
+              { value: 'audit_logging', label: 'comprehensive audit logging', description: 'All data access is tracked and monitored' },
+              { value: 'phi_monitoring', label: 'PHI access monitoring', description: 'Special monitoring for protected health information' }
+            ],
+            required: true
+          },
+          {
+            id: 'sensitive_categories',
+            type: 'multiSelect' as const,
+            label: 'Sensitive Data Categories',
+            description: 'The types of sensitive information included in this dataset',
+            allowOther: true,
+            options: [
+              { value: 'genetic', label: 'genetic information', description: 'DNA, RNA, and other genetic test results' },
+              { value: 'mental_health', label: 'mental health', description: 'Psychiatric and psychological health information' },
+              { value: 'substance_abuse', label: 'substance abuse', description: 'Drug and alcohol use disorder information' },
+              { value: 'hiv', label: 'HIV/AIDS', description: 'HIV/AIDS status and treatment information' },
+              { value: 'reproductive', label: 'reproductive health', description: 'Pregnancy and reproductive care information' },
+              { value: 'abuse', label: 'abuse-related information', description: 'Information about abuse or violence' }
+            ],
+            required: true
+          }
+        ],
+        'prospective_data': [
+          {
+            id: 'participant_count',
+            type: 'text' as const,
+            label: 'Participant Count',
+            placeholder: 'Enter the expected number of participants',
+            description: 'The total number of participants expected for this study',
+            required: true,
+            freeSolo: true
+          },
+          {
+            id: 'collection_method',
+            type: 'select' as const,
+            label: 'Collection Method',
+            description: 'The method used to collect this data',
+            options: [
+              { value: 'standard_care', label: 'standard of care visits at Mayo Clinic' },
+              { value: 'research_visits', label: 'dedicated research visits at Mayo Clinic' },
+              { value: 'remote', label: 'remote data collection' }
+            ],
+            required: true
+          },
+          {
+            id: 'clinical_setting',
+            type: 'text' as const,
+            label: 'Clinical Setting',
+            placeholder: 'Enter the clinical setting at Mayo Clinic',
+            description: 'The clinical setting at Mayo Clinic where this data was collected',
+            required: true,
+            freeSolo: true
+          },
+          {
+            id: 'data_format',
+            type: 'multiSelect' as const,
+            label: 'Data Format',
+            description: 'The format of the data',
+            allowOther: true,
+            options: [
+              { value: 'structured_clinical', label: 'structured clinical data', description: 'Organized data like lab results, vital signs, and medications' },
+              { value: 'imaging', label: 'medical imaging data', description: 'Medical images like X-rays, MRIs, and CT scans' },
+              { value: 'genomic', label: 'genomic and molecular data', description: 'Genetic and molecular information from lab tests' },
+              { value: 'textual', label: 'unstructured clinical notes', description: 'Free-text notes and reports from healthcare providers' }
+            ],
+            required: true
+          },
+          {
+            id: 'data_volume',
+            type: 'select' as const,
+            label: 'Data Volume',
+            description: 'The approximate size of the dataset',
+            options: [
+              { value: 'small', label: 'a small dataset (less than 1GB)', description: 'Equivalent to about 200,000 pages of text' },
+              { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)', description: 'Equivalent to about 20 million pages of text' },
+              { value: 'large', label: 'a large dataset (more than 100GB)', description: 'Larger than 20 million pages of text' }
+            ],
+            required: true
+          },
+          {
+            id: 'identifiability_level',
+            type: 'select' as const,
+            label: 'Identifiability Level',
+            description: 'The level of identifiability for this dataset',
+            options: [
+              { value: 'fully_deidentified', label: 'fully de-identified using HIPAA Safe Harbor method', description: 'All personal identifiers removed following HIPAA guidelines' },
+              { value: 'limited_dataset', label: 'a Limited Dataset containing only approved indirect identifiers', description: 'Contains only dates and geographic information as allowed by HIPAA' },
+              { value: 'coded', label: 'coded with a secure key management system', description: 'Uses codes instead of identifiers with secure key storage' },
+              { value: 'identifiable', label: 'identifiable with strict access controls', description: 'Contains identifiable information with strict protections' }
+            ],
+            required: true
+          },
+          {
+            id: 'security_measures',
+            type: 'multiSelect' as const,
+            label: 'Security Measures',
+            description: 'The security measures used to protect this data',
+            allowOther: true,
+            options: [
+              { value: 'encryption', label: 'end-to-end encryption', description: 'Data is encrypted during storage and transmission' },
+              { value: 'access_controls', label: 'role-based access controls', description: 'Access is restricted based on user roles' },
+              { value: 'secure_transfer', label: 'secure data transfer protocols', description: 'Data transfers use secure, encrypted methods' },
+              { value: 'audit_logging', label: 'comprehensive audit logging', description: 'All data access is tracked and monitored' },
+              { value: 'phi_monitoring', label: 'PHI access monitoring', description: 'Special monitoring for protected health information' }
+            ],
+            required: true
+          },
+          {
+            id: 'sensitive_categories',
+            type: 'multiSelect' as const,
+            label: 'Sensitive Data Categories',
+            description: 'The types of sensitive information included in this dataset',
+            allowOther: true,
+            options: [
+              { value: 'genetic', label: 'genetic information', description: 'DNA, RNA, and other genetic test results' },
+              { value: 'mental_health', label: 'mental health', description: 'Psychiatric and psychological health information' },
+              { value: 'substance_abuse', label: 'substance abuse', description: 'Drug and alcohol use disorder information' },
+              { value: 'hiv', label: 'HIV/AIDS', description: 'HIV/AIDS status and treatment information' },
+              { value: 'reproductive', label: 'reproductive health', description: 'Pregnancy and reproductive care information' },
+              { value: 'abuse', label: 'abuse-related information', description: 'Information about abuse or violence' }
+            ],
+            required: true
+          }
+        ]
+      }
+    }
+  }
+};
+
 export const studyOverviewModule: NarrativeModule = {
   id: 'study_overview',
   name: 'Study Overview',
@@ -240,412 +627,77 @@ export const dataAccessModule: NarrativeModule = {
       description: 'Define what resources and data types you need for your study.',
       guidance: `In this section, we need you to specify:
 - What types of data sources you'll use
-- The level of data identifiability
-- Any sensitive data categories
-- The origin and format of your data
-- Expected data volume and complexity`,
-      template: `To accomplish our research objectives, we will utilize {data_sources}{data_sources_conditional_text}
-
-The data will have the following identifiability levels: {identifiability_levels}.
-
-{sensitive_categories_text}
-
-The data will be obtained from {data_origin} and primarily consists of {data_formats}.
-
-We anticipate a dataset size and complexity of approximately {data_volume}.`,
-      fields: [
-        {
-          id: 'data_sources',
-          label: 'Data Sources/Types',
-          type: 'multiSelect',
-          placeholder: 'What data sources will you use?',
-          description: 'Select all data sources and types that will be used in your study',
-          allowOther: true,
-          options: [
-            { value: 'external_dua', label: 'externally sourced data under Data Use Agreement' },
-            { value: 'public_datasets', label: 'publicly available datasets' },
-            { value: 'internal_ehr', label: 'internally sourced clinical data from Mayo EHR' },
-            { value: 'prospective_data', label: 'prospectively collected patient data at Mayo Clinic' }
-          ]
-        },
-        {
-          id: 'data_sources_conditional_text',
-          type: 'text',
-          label: '',
-          description: '',
-          optional: true,
-          hidden: true,
-          noLabel: true,
-          generateText: (values: any) => {
-            const texts = [];
-            if (!values.data_sources?.length) {
-              return '';
-            }
-            if (values.data_sources?.includes('external_dua') || values.data_sources?.includes('public_datasets')) {
-              texts.push(':');  // Only add colon if we have conditional text to show
-            }
-            if (values.data_sources?.includes('external_dua')) {
-              texts.push(`\n\n• This external data will be acquired from ${values.external_provider || '[Enter the name of the external data provider]'} under a ${values.dua_type || '[What type of Data Use Agreement?]'} Data Use Agreement and is maintained by ${values.data_maintainer || '[Enter the organization that maintains the data]'}`);
-            }
-            if (values.data_sources?.includes('public_datasets')) {
-              texts.push(`\n\n• We will incorporate the ${values.dataset_name || '[Enter the dataset name]'} dataset, which is ${values.dataset_access_type || '[What is the access level of the dataset?]'} and maintained by ${values.data_maintainer || '[Enter the organization that maintains the data]'}`);
-            }
-            return texts.join('');
-          }
-        },
-        {
-          id: 'dataset_name',
-          type: 'text',
-          label: 'Dataset Name',
-          placeholder: 'Enter the dataset name',
-          description: 'Name of the public dataset being used',
-          dependsOn: {
-            fieldId: 'data_sources',
-            value: 'public_datasets',
-            operator: 'contains'
-          }
-        },
-        {
-          id: 'dataset_access_type',
-          type: 'select',
-          label: 'Dataset Access Level',
-          placeholder: 'What is the access level of the dataset?',
-          description: 'Select the access level of the public dataset',
-          options: [
-            { value: 'fully_open', label: 'fully open access' },
-            { value: 'registered', label: 'available with registration' },
-            { value: 'restricted', label: 'restricted access' }
-          ],
-          dependsOn: {
-            fieldId: 'data_sources',
-            value: 'public_datasets',
-            operator: 'contains'
-          }
-        },
-        {
-          id: 'external_provider',
-          type: 'text',
-          label: 'External Data Provider',
-          placeholder: 'Enter the name of the external data provider',
-          description: 'Name of the institution providing the external data',
-          dependsOn: {
-            fieldId: 'data_sources',
-            value: 'external_dua',
-            operator: 'contains'
-          }
-        },
-        {
-          id: 'dua_type',
-          type: 'select',
-          label: 'DUA Type',
-          placeholder: 'What type of Data Use Agreement?',
-          description: 'Select the type of Data Use Agreement',
-          options: [
-            { value: 'standard', label: 'standard institutional' },
-            { value: 'custom', label: 'custom negotiated' },
-            { value: 'federal', label: 'federal data use' }
-          ],
-          dependsOn: {
-            fieldId: 'data_sources',
-            value: 'external_dua',
-            operator: 'contains'
-          }
-        },
-        {
-          id: 'data_maintainer',
-          type: 'text',
-          label: 'Data Maintainer',
-          placeholder: 'Enter the organization that maintains the data',
-          description: 'Organization responsible for maintaining the data',
-          dependsOn: {
-            fieldId: 'data_sources',
-            value: ['external_dua', 'public_datasets'],
-            operator: 'contains'
-          }
-        },
-        {
-          id: 'identifiability_levels',
-          label: 'Identifiability Levels',
-          type: 'multiSelect',
-          placeholder: 'What level of identifiability will the data have?',
-          description: 'Select all applicable levels of data identifiability',
-          allowOther: true,
-          noLabel: true,
-          options: [
-            { value: 'fully_deidentified', label: 'fully de-identified according to HIPAA standards' },
-            { value: 'limited_dataset', label: 'a limited dataset containing only dates and zip codes' },
-            { value: 'coded', label: 'coded with a secure key maintained by the research team' },
-            { value: 'identifiable', label: 'identifiable as required for the research objectives' }
-          ]
-        },
-        {
-          id: 'sensitive_categories',
-          label: 'Sensitive Data Categories',
-          type: 'multiSelect',
-          placeholder: 'What sensitive data categories are included?',
-          description: 'Select all sensitive data categories that apply',
-          allowOther: true,
-          noLabel: true,
-          options: [
-            { value: 'genetic', label: 'genetic or genomic information' },
-            { value: 'mental_health', label: 'mental and behavioral health data' },
-            { value: 'reproductive', label: 'reproductive health information' },
-            { value: 'substance_use', label: 'substance use data' },
-            { value: 'none', label: 'no sensitive data categories' }
-          ],
-          expansionFields: {
-            'genetic': [
-              {
-                id: 'genomic_type',
-                type: 'select',
-                label: 'Genomic Data Type',
-                noLabel: true,
-                options: [
-                  { value: 'wgs', label: 'whole genome sequencing (WGS) data' },
-                  { value: 'wes', label: 'whole exome sequencing (WES) data' },
-                  { value: 'targeted_panel', label: 'targeted gene panel data' },
-                  { value: 'snp_array', label: 'SNP array data' }
-                ],
-                required: true
-              }
-            ],
-            'mental_health': [
-              {
-                id: 'mental_health_type',
-                type: 'text',
-                label: 'Mental Health Data Type',
-                noLabel: true,
-                placeholder: 'Specify type (e.g., clinical notes, psychiatric evaluations)',
-                required: true
-              }
-            ],
-            'reproductive': [
-              {
-                id: 'reproductive_type',
-                type: 'text',
-                label: 'Reproductive Data Type',
-                noLabel: true,
-                placeholder: 'Specify type (e.g., fertility treatments, obstetric records)',
-                required: true
-              }
-            ],
-            'substance_use': [
-              {
-                id: 'substance_type',
-                type: 'text',
-                label: 'Substance Type',
-                noLabel: true,
-                placeholder: 'Specify substance type or category',
-                required: true
-              }
-            ]
-          }
-        },
-        {
-          id: 'sensitive_categories_text',
-          type: 'text',
-          label: '',
-          description: '',
-          optional: true,
-          hidden: true,
-          noLabel: true,
-          generateText: (values: any) => {
-            const sensitiveOptions: Option[] = [
-              { value: 'genetic', label: 'genetic or genomic information' },
-              { value: 'mental_health', label: 'mental and behavioral health data' },
-              { value: 'reproductive', label: 'reproductive health information' },
-              { value: 'substance_use', label: 'substance use data' },
-              { value: 'none', label: 'no sensitive data categories' }
-            ];
-            
-            if (!values.sensitive_categories?.length) {
-              return 'The study includes the following sensitive data categories: [What sensitive data categories are included?]';
-            }
-            const texts = ['The study includes the following sensitive data categories:'];
-            values.sensitive_categories.forEach((category: string) => {
-              const option = sensitiveOptions.find((opt: Option) => opt.value === category);
-              if (!option) return;
-              
-              let text = `• ${option.label}`;
-              if (category === 'genetic' && values.genomic_type) {
-                text += `: ${values.genomic_type}`;
-              }
-              if (category === 'mental_health' && values.mental_health_type) {
-                text += `: ${values.mental_health_type}`;
-              }
-              if (category === 'reproductive' && values.reproductive_type) {
-                text += `: ${values.reproductive_type}`;
-              }
-              if (category === 'substance_use' && values.substance_type) {
-                text += `: ${values.substance_type}`;
-              }
-              texts.push(text);
-            });
-            return texts.join('\n');
-          }
-        },
-        {
-          id: 'data_formats',
-          label: 'Data Formats',
-          type: 'multiSelect',
-          placeholder: 'What formats will the data be in?',
-          description: 'Select all applicable data formats',
-          allowOther: true,
-          noLabel: true,
-          options: [
-            { value: 'structured_clinical', label: 'structured clinical data (including laboratory results and vital signs)' },
-            { value: 'imaging', label: 'medical imaging data (including radiology scans and pathology slides)' },
-            { value: 'genomic', label: 'genomic and molecular data' },
-            { value: 'textual', label: 'unstructured clinical notes and documentation' }
-          ],
-          expansionFields: {
-            'structured_clinical': [
-              {
-                id: 'clinical_domains',
-                type: 'text',
-                label: 'Clinical Domains',
-                placeholder: 'Specify clinical domains (e.g., oncology labs, cardiology vitals)',
-                required: true
-              }
-            ],
-            'imaging': [
-              {
-                id: 'imaging_modality',
-                type: 'multiSelect',
-                label: 'Imaging Modalities',
-                options: [
-                  { value: 'mri', label: 'Magnetic Resonance Imaging (MRI)' },
-                  { value: 'ct', label: 'Computed Tomography (CT)' },
-                  { value: 'xray', label: 'X-ray imaging' },
-                  { value: 'histopathology', label: 'histopathology slides' }
-                ],
-                required: true
-              },
-              {
-                id: 'image_count',
-                type: 'number',
-                label: 'Approximate Number of Images',
-                required: true
-              }
-            ],
-            'genomic': [
-              {
-                id: 'genomic_data_type',
-                type: 'text',
-                label: 'Genomic Data Type',
-                placeholder: 'Specify type (e.g., WES, WGS, gene expression data)',
-                required: true
-              }
-            ],
-            'textual': [
-              {
-                id: 'text_cleaning',
-                type: 'text',
-                label: 'Data Cleaning Steps',
-                placeholder: 'Describe planned data cleaning steps',
-                required: true
-              }
-            ]
-          }
-        },
-        {
-          id: 'data_origin',
-          label: 'Data Origin',
-          type: 'multiSelect',
-          placeholder: 'Where will the data come from?',
-          description: 'Select all applicable data origins',
-          allowOther: true,
-          noLabel: true,
-          options: [
-            { value: 'mayo_ehr', label: 'Mayo Clinic EHR' },
-            { value: 'external_collaborators', label: 'external collaborators' },
-            { value: 'public_repositories', label: 'public data repositories' },
-            { value: 'prospective_collection', label: 'prospective data collection' }
-          ]
-        },
-        {
-          id: 'data_volume',
-          label: 'Data Volume & Complexity',
-          type: 'select',
-          placeholder: 'What is the expected data volume?',
-          description: 'Select the anticipated size and complexity of your dataset',
-          allowOther: true,
-          options: [
-            { value: 'small', label: 'a small dataset (less than 1GB)' },
-            { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)' },
-            { value: 'large', label: 'a large dataset (more than 100GB)' },
-            { value: 'undetermined', label: 'a dataset with size yet to be determined' }
-          ]
-        }
-      ]
+- For each data source:
+  - Format and volume
+  - Level of identifiability
+  - Security measures
+  - Sensitive data categories`,
+      template: "To accomplish our research objectives, we will utilize the following {data_sources}",
+      fields: [DATA_SOURCES_SCHEMA.fields.data_sources]
     },
     {
-      id: 'data_security',
+      id: 'data_storage',
       moduleId: 'data_access',
       moduleName: 'Data Access & Resources',
-      title: 'Data Security & Protection',
-      description: 'Define how you will protect and secure study data.',
+      title: 'Data Storage & Management',
+      description: 'Define how you will store and manage the study data.',
       guidance: `In this section, we need you to specify:
-- Security measures for data protection
-- Access control mechanisms
-- Encryption standards
-- Monitoring and auditing procedures`,
-      template: 'Data security will be maintained through {security_measures}. Access will be controlled via {access_control}, with {encryption_standards} for data protection. {monitoring_procedures}',
+- Where data will be stored
+- How data will be secured
+- Data retention plans
+- Access controls`,
+      template: "Study data will be stored {storage_location} with {security_controls}. Data retention will follow {retention_plan}, and access will be controlled through {access_controls}.",
       fields: [
         {
-          id: 'security_measures',
-          label: 'Security Measures',
-          type: 'multiSelect',
-          placeholder: 'What security measures will you implement?',
-          description: 'Select all security measures that will be implemented',
-          allowOther: true,
+          id: 'storage_location',
+          type: 'select' as const,
+          label: 'Storage Location',
+          placeholder: 'Where will the data be stored?',
+          description: 'Select the primary storage location for study data',
           options: [
-            { value: 'firewall_protection', label: 'enterprise-grade firewalls' },
-            { value: 'intrusion_detection', label: 'intrusion detection systems' },
-            { value: 'access_logging', label: 'comprehensive access logging' },
-            { value: 'physical_security', label: 'physical security controls' }
+            { value: 'mayo_secure', label: 'in Mayo Clinic secure research storage' },
+            { value: 'approved_cloud', label: 'in an approved cloud environment' },
+            { value: 'dedicated_server', label: 'on a dedicated secure server' }
           ]
         },
         {
-          id: 'access_control',
-          label: 'Access Control',
-          type: 'select',
-          placeholder: 'How will you control access?',
-          description: 'Select the primary access control mechanism',
+          id: 'security_controls',
+          type: 'multiSelect' as const,
+          label: 'Security Controls',
+          placeholder: 'What security controls will be in place?',
+          description: 'Select all security controls that will be implemented',
+          allowOther: true,
+          options: [
+            { value: 'encryption', label: 'encryption at rest and in transit' },
+            { value: 'access_logging', label: 'comprehensive access logging' },
+            { value: 'backup_recovery', label: 'automated backup and recovery' },
+            { value: 'monitoring', label: '24/7 security monitoring' }
+          ]
+        },
+        {
+          id: 'retention_plan',
+          type: 'select' as const,
+          label: 'Retention Plan',
+          placeholder: 'What is the data retention plan?',
+          description: 'Select the data retention approach',
+          options: [
+            { value: 'standard_retention', label: 'standard Mayo Clinic retention policies' },
+            { value: 'extended_retention', label: 'extended retention for long-term research' },
+            { value: 'custom_retention', label: 'custom retention based on study requirements' }
+          ]
+        },
+        {
+          id: 'access_controls',
+          type: 'multiSelect' as const,
+          label: 'Access Controls',
+          placeholder: 'How will access be controlled?',
+          description: 'Select all access control measures',
           allowOther: true,
           options: [
             { value: 'role_based', label: 'role-based access control (RBAC)' },
-            { value: 'multi_factor', label: 'multi-factor authentication' },
-            { value: 'identity_management', label: 'federated identity management' },
-            { value: 'zero_trust', label: 'zero trust architecture' }
-          ]
-        },
-        {
-          id: 'encryption_standards',
-          label: 'Encryption Standards',
-          type: 'select',
-          placeholder: 'What encryption standards will you use?',
-          description: 'Select the encryption standards to be implemented',
-          allowOther: true,
-          options: [
-            { value: 'aes_256', label: 'AES-256 encryption at rest and in transit' },
-            { value: 'tls_1_3', label: 'TLS 1.3 for all data transfers' },
-            { value: 'end_to_end', label: 'end-to-end encryption' },
-            { value: 'fips_140_2', label: 'FIPS 140-2 compliant encryption' }
-          ]
-        },
-        {
-          id: 'monitoring_procedures',
-          label: 'Monitoring Procedures',
-          type: 'select',
-          placeholder: 'How will you monitor data access?',
-          description: 'Select the monitoring and auditing procedures',
-          allowOther: true,
-          options: [
-            { value: 'automated_monitoring', label: 'Automated monitoring systems will track all data access and usage.' },
-            { value: 'regular_audits', label: 'Regular security audits will be conducted.' },
-            { value: 'incident_response', label: 'An incident response plan will be maintained.' },
-            { value: 'compliance_checks', label: 'Regular compliance checks will be performed.' }
+            { value: 'mfa', label: 'multi-factor authentication (MFA)' },
+            { value: 'audit_trails', label: 'detailed audit trails' },
+            { value: 'time_limited', label: 'time-limited access grants' }
           ]
         }
       ]
@@ -655,139 +707,66 @@ We anticipate a dataset size and complexity of approximately {data_volume}.`,
       moduleId: 'data_access',
       moduleName: 'Data Access & Resources',
       title: 'Data Sharing & Collaboration',
-      description: 'Define how data will be shared and managed across collaborators.',
+      description: 'Define how data will be shared with collaborators.',
       guidance: `In this section, we need you to specify:
-- Data sharing agreements
-- Collaboration protocols
-- Access levels for different teams
-- Data transfer procedures`,
-      template: 'Data sharing will be governed by {sharing_agreements}. Collaboration will follow {collaboration_protocols}, with {access_levels} for different teams. {transfer_procedures}',
+- Who data will be shared with
+- How data will be shared
+- What protections will be in place
+- Any restrictions on use`,
+      template: "Data will be shared with {collaborators} using {sharing_method}. Shared data will be protected by {sharing_protections} and subject to {usage_restrictions}.",
       fields: [
         {
-          id: 'sharing_agreements',
-          label: 'Sharing Agreements',
-          type: 'select',
-          placeholder: 'What type of sharing agreements will be used?',
-          description: 'Select the type of data sharing agreements',
+          id: 'collaborators',
+          type: 'multiSelect' as const,
+          label: 'Collaborators',
+          placeholder: 'Who will data be shared with?',
+          description: 'Select all groups data will be shared with',
           allowOther: true,
           options: [
-            { value: 'dua', label: 'formal data use agreements (DUAs)' },
-            { value: 'mta', label: 'material transfer agreements (MTAs)' },
-            { value: 'institutional_agreements', label: 'institutional collaboration agreements' },
-            { value: 'confidentiality_agreements', label: 'confidentiality agreements' }
+            { value: 'internal', label: 'internal Mayo Clinic researchers' },
+            { value: 'academic', label: 'academic research partners' },
+            { value: 'industry', label: 'industry collaborators' },
+            { value: 'consortium', label: 'research consortium members' }
           ]
         },
         {
-          id: 'collaboration_protocols',
-          label: 'Collaboration Protocols',
-          type: 'select',
-          placeholder: 'How will collaboration be managed?',
-          description: 'Select the primary collaboration protocol',
-          allowOther: true,
+          id: 'sharing_method',
+          type: 'select' as const,
+          label: 'Sharing Method',
+          placeholder: 'How will data be shared?',
+          description: 'Select the primary method for data sharing',
           options: [
-            { value: 'secure_platform', label: 'a secure collaboration platform' },
-            { value: 'federated_access', label: 'federated access controls' },
-            { value: 'controlled_sharing', label: 'controlled data sharing environments' },
-            { value: 'staged_access', label: 'staged access protocols' }
+            { value: 'secure_transfer', label: 'secure file transfer protocol' },
+            { value: 'api_access', label: 'secure API access' },
+            { value: 'shared_environment', label: 'shared secure environment' }
           ]
         },
         {
-          id: 'access_levels',
-          label: 'Access Levels',
-          type: 'multiSelect',
-          placeholder: 'What access levels will be implemented?',
-          description: 'Select all applicable access levels',
+          id: 'sharing_protections',
+          type: 'multiSelect' as const,
+          label: 'Sharing Protections',
+          placeholder: 'What protections will be in place?',
+          description: 'Select all protections for shared data',
           allowOther: true,
           options: [
-            { value: 'full_access', label: 'full access for core team members' },
-            { value: 'limited_access', label: 'limited access for collaborators' },
-            { value: 'view_only', label: 'view-only access for reviewers' },
-            { value: 'no_access', label: 'no access for external parties' }
+            { value: 'dua', label: 'data use agreements' },
+            { value: 'encryption', label: 'end-to-end encryption' },
+            { value: 'access_controls', label: 'strict access controls' },
+            { value: 'audit_trails', label: 'comprehensive audit trails' }
           ]
         },
         {
-          id: 'transfer_procedures',
-          label: 'Transfer Procedures',
-          type: 'select',
-          placeholder: 'How will data be transferred?',
-          description: 'Select the primary data transfer procedure',
+          id: 'usage_restrictions',
+          type: 'multiSelect' as const,
+          label: 'Usage Restrictions',
+          placeholder: 'What restrictions will apply?',
+          description: 'Select all applicable usage restrictions',
           allowOther: true,
           options: [
-            { value: 'secure_transfer', label: 'Data will be transferred through secure, encrypted channels.' },
-            { value: 'api_access', label: 'Access will be provided through secure APIs.' },
-            { value: 'controlled_export', label: 'Data exports will be controlled and logged.' },
-            { value: 'direct_access', label: 'Direct access will be provided within secure environments.' }
-          ]
-        }
-      ]
-    },
-    {
-      id: 'resource_requirements',
-      moduleId: 'data_access',
-      moduleName: 'Data Access & Resources',
-      title: 'Resource Requirements',
-      description: 'Define the computational and storage resources needed.',
-      guidance: `In this section, we need you to specify:
-- Computational requirements
-- Storage needs
-- Software dependencies
-- Infrastructure requirements`,
-      template: 'The study requires {computational_resources} for processing, with {storage_requirements} for data storage. We will utilize {software_requirements} and require {infrastructure_needs}.',
-      fields: [
-        {
-          id: 'computational_resources',
-          label: 'Computational Resources',
-          type: 'multiSelect',
-          placeholder: 'What computational resources are needed?',
-          description: 'Select all required computational resources',
-          allowOther: true,
-          options: [
-            { value: 'high_performance', label: 'high-performance computing clusters' },
-            { value: 'gpu_resources', label: 'GPU computing resources' },
-            { value: 'distributed_computing', label: 'distributed computing systems' },
-            { value: 'standard_computing', label: 'standard computing resources' }
-          ]
-        },
-        {
-          id: 'storage_requirements',
-          label: 'Storage Requirements',
-          type: 'select',
-          placeholder: 'What are your storage needs?',
-          description: 'Select the primary storage requirements',
-          allowOther: true,
-          options: [
-            { value: 'petabyte_scale', label: 'petabyte-scale storage' },
-            { value: 'terabyte_scale', label: 'terabyte-scale storage' },
-            { value: 'gigabyte_scale', label: 'gigabyte-scale storage' },
-            { value: 'elastic_storage', label: 'elastic storage solutions' }
-          ]
-        },
-        {
-          id: 'software_requirements',
-          label: 'Software Requirements',
-          type: 'multiSelect',
-          placeholder: 'What software is required?',
-          description: 'Select all required software resources',
-          allowOther: true,
-          options: [
-            { value: 'ml_frameworks', label: 'machine learning frameworks' },
-            { value: 'data_analysis', label: 'data analysis tools' },
-            { value: 'visualization', label: 'visualization software' },
-            { value: 'database_systems', label: 'database management systems' }
-          ]
-        },
-        {
-          id: 'infrastructure_needs',
-          label: 'Infrastructure Needs',
-          type: 'select',
-          placeholder: 'What infrastructure is needed?',
-          description: 'Select the primary infrastructure requirements',
-          allowOther: true,
-          options: [
-            { value: 'cloud_infrastructure', label: 'cloud computing infrastructure' },
-            { value: 'on_premise', label: 'on-premise computing resources' },
-            { value: 'hybrid_setup', label: 'hybrid cloud-local setup' },
-            { value: 'specialized_hardware', label: 'specialized hardware resources' }
+            { value: 'purpose_limited', label: 'purpose-limited use' },
+            { value: 'no_redistribution', label: 'no redistribution' },
+            { value: 'time_limited', label: 'time-limited access' },
+            { value: 'publication_review', label: 'publication review requirements' }
           ]
         }
       ]
@@ -886,8 +865,7 @@ export const studyPopulationModule: NarrativeModule = {
           label: 'Additional Details',
           type: 'text',
           placeholder: 'Any additional population details?',
-          description: 'Optional: Provide any additional context about your study population',
-          optional: true
+          description: 'Optional: Provide any additional context about your study population'
         }
       ]
     }
