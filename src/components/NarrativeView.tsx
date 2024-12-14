@@ -1,10 +1,9 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Box, Container, useTheme, useMediaQuery, IconButton } from '@mui/material';
 import { DoubleArrow as DoubleArrowIcon } from '@mui/icons-material';
-import { AnimatePresence } from 'framer-motion';
 import { NarrativeSection, ValidationStatus, NarrativeModule, ModuleCompletionStatus } from '../types/narrative';
 import { NarrativeStepper } from './NarrativeStepper';
-import { NarrativeForm } from './NarrativeForm';
+import { NarrativeForm, InstructionsBox } from './NarrativeForm';
 import { NarrativeModuleNavigator } from './NarrativeModuleNavigator';
 import { NarrativePreviewModal } from './NarrativePreviewModal';
 
@@ -206,15 +205,20 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
   }, [activeStep, sections.length, currentSection?.id]); // Added currentSection?.id to dependencies
 
   return (
-    <Container maxWidth={false} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Container 
+      maxWidth={false} 
+      sx={{ 
+        height: '100%',
+        overflow: 'hidden',
+        maxWidth: '100vw',
+      }}
+    >
       <Box sx={{ 
-        position: 'sticky',
-        top: 0,
-        backgroundColor: 'background.default',
-        borderBottom: 1,
-        borderColor: 'divider',
-        zIndex: 2,
-        py: 0.25,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3,
+        height: '100%',
+        position: 'relative',
       }}>
         <NarrativeStepper
           modules={modules}
@@ -224,96 +228,102 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({
           handleStepClick={handleStepClick}
           sections={sections}
         />
+        
+        <Box sx={{ 
+          display: 'flex',
+          gap: 3,
+          height: 'calc(100% - 72px)', // Account for stepper height
+        }}>
+          {!isMobile && (
+            <Box sx={{ 
+              width: DRAWER_WIDTH,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              height: '100%',
+            }}>
+              <NarrativeModuleNavigator
+                currentModule={currentModule}
+                sections={sections}
+                activeStep={activeStep}
+                handleStepClick={handleStepClick}
+                getStepStatus={getStepStatus}
+                setIsModulePreviewOpen={setIsModulePreviewOpen}
+                DRAWER_WIDTH={DRAWER_WIDTH}
+              />
+              <Box sx={{
+                borderRadius: 2,
+                '& .MuiTypography-root': {
+                  fontSize: '0.95rem',
+                },
+              }}>
+                <InstructionsBox
+                  currentSection={sections[activeStep]}
+                  isInstructionsExpanded={isInstructionsExpanded}
+                  setIsInstructionsExpanded={setIsInstructionsExpanded}
+                />
+              </Box>
+            </Box>
+          )}
+
+          <Box sx={{ 
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+          }}>
+            <Box
+              ref={formRef}
+              sx={{
+                flex: 1,
+                overflowY: 'auto',
+                maxWidth: '100%',
+                p: 1,
+              }}
+            >
+              <NarrativeForm
+                currentSection={currentSection}
+                currentModule={currentModule}
+                values={values}
+                onUpdate={onUpdate}
+                activeStep={activeStep}
+                sections={sections}
+                handleStepClick={handleStepClick}
+                nextButtonRef={nextButtonRef}
+                isInstructionsExpanded={isInstructionsExpanded}
+                setIsInstructionsExpanded={setIsInstructionsExpanded}
+              />
+            </Box>
+          </Box>
+        </Box>
       </Box>
 
-      <Box sx={{ 
-        display: 'flex',
-        gap: 4,
-        flexGrow: 1,
-        px: 3,
-        overflow: 'hidden',
-      }}>
-        <Box 
-          ref={formRef}
-          sx={{ 
-            flexGrow: 1,
-            maxWidth: isMobile ? '100%' : `calc(100% - ${DRAWER_WIDTH}px - 24px)`,
-            overflowY: 'auto',
-            py: 2,
-            pr: 3,
-            height: 'calc(100vh - 88px)',
-            '& > div': {
-              minHeight: 'min-content',
-              paddingBottom: 'calc(88px + 2rem)',
+      {showScrollHint && (
+        <IconButton
+          onClick={scrollToBottom}
+          color="primary"
+          sx={{
+            position: 'fixed',
+            right: theme.spacing(4),
+            bottom: theme.spacing(4),
+            backgroundColor: 'background.paper',
+            boxShadow: theme.shadows[6],
+            zIndex: 1200,
+            '&:hover': {
+              backgroundColor: 'primary.light',
             },
-            '&::-webkit-scrollbar': {
-              width: '6px',
-            },
-            '&::-webkit-scrollbar-track': {
-              background: 'transparent',
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: theme.palette.grey[300],
-              borderRadius: '3px',
-              '&:hover': {
-                background: theme.palette.grey[400],
-              },
+            animation: 'bounce 1s infinite',
+            '@keyframes bounce': {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-5px)' },
             },
           }}
         >
-          <AnimatePresence mode="wait">
-            <NarrativeForm
-              currentSection={currentSection}
-              currentModule={currentModule}
-              values={values}
-              onUpdate={onUpdate}
-              activeStep={activeStep}
-              sections={sections}
-              handleStepClick={handleStepClick}
-              nextButtonRef={nextButtonRef}
-              isInstructionsExpanded={isInstructionsExpanded}
-              setIsInstructionsExpanded={setIsInstructionsExpanded}
-            />
-          </AnimatePresence>
-        </Box>
-
-        {!isMobile && (
-          <NarrativeModuleNavigator
-            currentModule={currentModule}
-            sections={sections}
-            activeStep={activeStep}
-            handleStepClick={handleStepClick}
-            getStepStatus={getStepStatus}
-            setIsModulePreviewOpen={setIsModulePreviewOpen}
-            DRAWER_WIDTH={DRAWER_WIDTH}
-          />
-        )}
-
-        {showScrollHint && (
-          <IconButton
-            onClick={scrollToBottom}
-            color="primary"
-            sx={{
-              position: 'fixed',
-              right: isMobile ? theme.spacing(4) : `calc(${DRAWER_WIDTH}px + ${theme.spacing(6)})`,
-              bottom: theme.spacing(4),
-              backgroundColor: 'background.paper',
-              boxShadow: theme.shadows[6],
-              zIndex: 1200,
-              '&:hover': {
-                backgroundColor: 'primary.light',
-              },
-              animation: 'bounce 1s infinite',
-              '@keyframes bounce': {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-5px)' },
-              },
-            }}
-          >
-            <DoubleArrowIcon sx={{ transform: 'rotate(90deg)' }} />
-          </IconButton>
-        )}
-      </Box>
+          <DoubleArrowIcon sx={{ transform: 'rotate(90deg)' }} />
+        </IconButton>
+      )}
 
       <NarrativePreviewModal
         isOpen={isModulePreviewOpen}

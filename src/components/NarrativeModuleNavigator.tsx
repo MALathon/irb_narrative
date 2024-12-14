@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Paper,
   Box,
   Typography,
   Button,
@@ -17,6 +16,8 @@ import {
   RadioButtonUnchecked as UncheckedIcon,
   Article as ArticleIcon,
   MenuBook as MenuBookIcon,
+  MenuBookOutlined,
+  Preview as PreviewIcon,
 } from '@mui/icons-material';
 import { NarrativeModule, NarrativeSection } from '../types/narrative';
 
@@ -42,29 +43,18 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
   const theme = useTheme();
 
   return (
-    <Paper
-      elevation={3}
+    <Box
       sx={{
         width: DRAWER_WIDTH,
         flexShrink: 0,
-        borderRadius: 2,
-        margin: 2,
-        marginRight: 3,
-        marginLeft: 0,
-        height: 'calc(100vh - 88px - 32px)',
-        backgroundColor: theme.palette.grey[50],
+        margin: 0,
+        marginBottom: 2,
+        height: '400px',
         position: 'relative',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderRadius: 2,
-          boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)',
-          pointerEvents: 'none',
-        }
+        overflow: 'hidden',
+        backgroundColor: 'background.paper',
+        borderRadius: 2,
+        boxShadow: theme.shadows[1],
       }}
     >
       <Box
@@ -73,51 +63,51 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         <Box sx={{ 
-          p: 3,
+          p: 1.5,
           borderBottom: 1,
           borderColor: 'divider',
-          backgroundColor: 'background.paper',
           boxShadow: `0 1px 2px ${theme.palette.divider}`,
         }}>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            mb: 2 
-          }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <MenuBookIcon color="primary" />
-              <Typography variant="h6" sx={{ color: 'text.primary' }}>
-                Module Navigator
-              </Typography>
-            </Box>
-            <Tooltip title="View All Sections in Current Module" placement="left" arrow>
+          <Box sx={{ width: '100%' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              mb: 1,
+              px: 0.5,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <MenuBookOutlined color="primary" />
+                <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                  Module Navigator
+                </Typography>
+              </Box>
               <Button
-                onClick={() => setIsModulePreviewOpen(true)}
-                size="small"
-                color="primary"
                 variant="outlined"
-                startIcon={<ArticleIcon />}
-                sx={{
-                  '&:hover': {
-                    backgroundColor: 'primary.light',
-                  },
-                  transition: 'all 0.2s ease-in-out',
-                  fontSize: '0.75rem',
+                size="small"
+                startIcon={<PreviewIcon />}
+                onClick={() => setIsModulePreviewOpen(true)}
+                sx={{ 
+                  px: 1.5,
+                  py: 0.5,
+                  fontSize: '0.875rem',
+                  ml: 2,
                 }}
               >
                 Preview Module
               </Button>
-            </Tooltip>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+              {currentModule.name}
+            </Typography>
           </Box>
-          <Typography variant="body2" color="text.secondary">
-            {currentModule.name}
-          </Typography>
         </Box>
-        <List component="nav" sx={{ px: 2, py: 1, flex: 1 }}>
+        <List component="nav" sx={{ px: 1.5, py: 1, flex: 1, width: '100%', boxSizing: 'border-box' }}>
           {currentModule.sections.map((section) => {
             const absoluteIndex = sections.findIndex(s => s.id === section.id);
             const { isComplete, hasWarning } = getStepStatus(absoluteIndex);
@@ -130,6 +120,7 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
                 sx={{
                   borderRadius: 1,
                   mb: 0.5,
+                  py: 0.75,
                   '&.Mui-selected': {
                     backgroundColor: 'primary.main',
                     color: 'primary.contrastText',
@@ -139,7 +130,7 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
                   },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36 }}>
+                <ListItemIcon sx={{ minWidth: 32 }}>
                   {isComplete ? (
                     <CheckCircleIcon fontSize="small" color="success" />
                   ) : hasWarning ? (
@@ -152,7 +143,13 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
                   primary={section.title}
                   primaryTypographyProps={{
                     variant: 'body2',
-                    sx: { fontWeight: absoluteIndex === activeStep ? 600 : 400 },
+                    sx: { 
+                      fontWeight: absoluteIndex === activeStep ? 600 : 400,
+                      fontSize: '0.85rem',
+                      lineHeight: 1.3,
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word'
+                    },
                   }}
                 />
               </ListItem>
@@ -160,6 +157,6 @@ export const NarrativeModuleNavigator: React.FC<NarrativeModuleNavigatorProps> =
           })}
         </List>
       </Box>
-    </Paper>
+    </Box>
   );
 }; 

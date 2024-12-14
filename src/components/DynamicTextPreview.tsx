@@ -1,12 +1,13 @@
 import React, { useRef, useCallback } from 'react';
 import { Box, Typography, Popper, ClickAwayListener, MenuList, MenuItem, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Button, Paper, Checkbox, IconButton, Tooltip, Switch, FormControlLabel } from '@mui/material';
-import { NarrativeSection, Field } from '../types/narrative';
+import { NarrativeSection, Field, DynamicField, ExpansionField } from '../types/narrative';
 import { Edit as EditIcon, Visibility as VisibilityIcon, VisibilityOff as VisibilityOffIcon } from '@mui/icons-material';
 import { NarrativePreviewModal } from './NarrativePreviewModal';
-import { DATA_SOURCES_SCHEMA } from '../data/irbNarrativeSchema';
+import { DATA_SOURCES_SCHEMA, CLINICAL_DOMAIN_OPTIONS, DATA_FORMAT_OPTIONS, DATA_VOLUME_OPTIONS, IDENTIFIABILITY_LEVEL_OPTIONS, SECURITY_MEASURES_OPTIONS, SENSITIVE_CATEGORIES_OPTIONS, CLINICAL_SETTING_OPTIONS, EXPANSION_MAPPINGS, EXPANSION_FIELDS } from '../data/irbNarrativeSchema';
 import { AutocompleteText } from './AutocompleteText';
 import { commonSuggestions } from '../data/commonSuggestions';
 import { CheckBoxOutlineBlank, CheckBox } from '@mui/icons-material';
+import { motion } from 'framer-motion';
 
 interface DynamicTextPreviewProps {
   section: NarrativeSection;
@@ -21,26 +22,6 @@ interface OptionType {
   description?: string;
 }
 
-interface DynamicField {
-  id: string;
-  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
-  label: string;
-  placeholder?: string;
-  description?: string;
-  options?: OptionType[];
-  expansionFields?: {
-    [key: string]: ExpansionField[];
-  };
-  freeSolo?: boolean;
-  allowOther?: boolean;
-  suggestions?: string[];
-  validation?: {
-    type: string;
-    value: any;
-    message?: string;
-  }[];
-}
-
 interface DynamicSentence {
   template: string;
   fields: { [key: string]: DynamicField };
@@ -49,24 +30,6 @@ interface DynamicSentence {
       [value: string]: DynamicSentence[];
     };
   };
-}
-
-interface ExpansionField {
-  id: string;
-  type: 'text' | 'select' | 'multiSelect' | 'number';
-  label: string;
-  placeholder?: string;
-  description?: string;
-  options?: OptionType[];
-  required?: boolean;
-  allowOther?: boolean;
-  freeSolo?: boolean;
-  suggestions?: string[];
-  validation?: {
-    type: string;
-    value: any;
-    message?: string;
-  }[];
 }
 
 interface ExpansionContent {
@@ -81,15 +44,29 @@ interface ExpansionFields {
     placeholder?: string;
     description?: string;
     options?: OptionType[];
-    allowOther?: boolean;
+    allowCustom?: boolean;
     generateText?: (values: any) => string;
     freeSolo?: boolean;
+    helpText?: string;
   };
 }
 
 interface ExpansionMapping {
   [key: string]: {
     [value: string]: ExpansionContent;
+  };
+}
+
+interface Option {
+  value: string;
+  label: string;
+  description?: string;
+  attestation?: {
+    type: string;
+    statement: string;
+    severity: 'critical' | 'important' | 'advisory';
+    requiresEvidence: boolean;
+    regulatoryReference?: string;
   };
 }
 
@@ -115,7 +92,7 @@ const section: NarrativeSection = {
       label: 'Data Sources',
       placeholder: 'Which data sources will you use?',
       description: 'Choose all the types of data you will need to access for your research',
-      allowOther: false,
+      allowCustom: false,
       options: [
         { value: 'external_dua', label: 'external data requiring a Data Use Agreement', description: 'Data from outside organizations that requires a formal agreement to use' },
         { value: 'public_datasets', label: 'publicly available research datasets', description: 'Data that is freely available to researchers' },
@@ -125,160 +102,6 @@ const section: NarrativeSection = {
       expansionFields: DATA_SOURCES_SCHEMA.fields.data_sources.expansionFields
     }
   ]
-};
-
-// Define expansion mappings for each data source
-const EXPANSION_MAPPINGS: ExpansionMapping = {
-  data_sources: {
-    'external_dua': {
-      sentence: "External data will be acquired from {external_provider} under a {dua_type}. This data will be in {data_format} format with an estimated volume of {data_volume}. The data will be {identifiability_level} with {security_measures} in place. The data includes sensitive information related to {sensitive_categories}."
-    },
-    'public_datasets': {
-      sentence: "For the public dataset, named {dataset_name}, which is {dataset_access_type} and maintained by {data_maintainer}. This data will be in {data_format} format with an estimated volume of {data_volume}. The data will be {identifiability_level}."
-    },
-    'internal_ehr': {
-      sentence: "Internal EHR data will be derived from Mayo Clinic's secure clinical repositories in the following domains: {clinical_domain}. This data will be in {data_format} format with an estimated volume of {data_volume}. The data will be {identifiability_level} with {security_measures} in place. The data includes sensitive information related to {sensitive_categories}."
-    },
-    'prospective_data': {
-      sentence: "Prospectively, we will collect data from approximately {participant_count} participants through {collection_method} in {clinical_setting}. This data will be in {data_format} format with an estimated volume of {data_volume}. The data will be {identifiability_level} with {security_measures} in place. The data includes sensitive information related to {sensitive_categories}."
-    }
-  }
-};
-
-// Define fields for each data source
-const EXPANSION_FIELDS: ExpansionFields = {
-  external_provider: {
-    type: 'text',
-    label: 'External Provider',
-    placeholder: 'Enter the name of the external data provider',
-    description: 'The organization or institution providing the external data',
-    freeSolo: true
-  },
-  dua_type: {
-    type: 'select',
-    label: 'DUA Type',
-    options: [
-      { value: 'standard', label: 'standard institutional DUA' },
-      { value: 'custom', label: 'custom negotiated DUA' },
-      { value: 'federal', label: 'federal DUA' }
-    ]
-  },
-  dataset_name: {
-    type: 'text',
-    label: 'Dataset Name',
-    placeholder: 'Enter the dataset name'
-  },
-  dataset_access_type: {
-    type: 'select',
-    label: 'Dataset Access Level',
-    options: [
-      { value: 'fully_open', label: 'fully open access' },
-      { value: 'registered', label: 'available with registration' },
-      { value: 'restricted', label: 'restricted access' }
-    ]
-  },
-  data_maintainer: {
-    type: 'text',
-    label: 'Data Maintainer',
-    placeholder: 'Enter the organization that maintains the data'
-  },
-  clinical_domain: {
-    type: 'multiSelect',
-    label: 'Clinical Domain',
-    options: [
-      { value: 'pediatrics', label: 'Pediatrics' },
-      { value: 'cardiology', label: 'Cardiology' },
-      { value: 'oncology', label: 'Oncology' },
-      { value: 'neurology', label: 'Neurology' },
-      { value: 'internal_medicine', label: 'Internal Medicine' },
-      { value: 'psychiatry', label: 'Psychiatry' },
-      { value: 'orthopedics', label: 'Orthopedics' },
-      { value: 'dermatology', label: 'Dermatology' },
-      { value: 'endocrinology', label: 'Endocrinology' },
-      { value: 'gastroenterology', label: 'Gastroenterology' }
-    ],
-    placeholder: 'Select clinical domains'
-  },
-  participant_count: {
-    type: 'text',
-    label: 'Participant Count',
-    placeholder: 'Enter the expected number of participants'
-  },
-  collection_method: {
-    type: 'select',
-    label: 'Collection Method',
-    options: [
-      { value: 'standard_care', label: 'standard of care visits' },
-      { value: 'research_visits', label: 'dedicated research visits' },
-      { value: 'remote', label: 'remote data collection' }
-    ]
-  },
-  clinical_setting: {
-    type: 'text',
-    label: 'Clinical Setting',
-    placeholder: 'Enter the clinical setting'
-  },
-  data_format: {
-    type: 'multiSelect',
-    label: 'Data Format',
-    options: [
-      { value: 'structured_clinical', label: 'structured clinical data' },
-      { value: 'imaging', label: 'medical imaging data' },
-      { value: 'genomic', label: 'genomic and molecular data' },
-      { value: 'textual', label: 'unstructured clinical notes' }
-    ]
-  },
-  data_volume: {
-    type: 'select',
-    label: 'Data Volume',
-    options: [
-      { value: 'small', label: 'a small dataset (less than 1GB)' },
-      { value: 'moderate', label: 'a moderate dataset (1GB to 100GB)' },
-      { value: 'large', label: 'a large dataset (more than 100GB)' }
-    ]
-  },
-  identifiability_level: {
-    type: 'select',
-    label: 'Identifiability Level',
-    options: [
-      { value: 'fully_deidentified', label: 'fully de-identified using HIPAA Safe Harbor method' },
-      { value: 'limited_dataset', label: 'a Limited Dataset containing only approved indirect identifiers' },
-      { value: 'coded', label: 'coded with a secure key management system' },
-      { value: 'identifiable', label: 'identifiable with strict access controls' }
-    ]
-  },
-  security_measures: {
-    type: 'multiSelect',
-    label: 'Security Measures',
-    options: [
-      { value: 'encryption', label: 'end-to-end encryption' },
-      { value: 'access_controls', label: 'role-based access controls' },
-      { value: 'secure_transfer', label: 'secure data transfer protocols' },
-      { value: 'audit_logging', label: 'comprehensive audit logging' },
-      { value: 'phi_monitoring', label: 'PHI access monitoring' }
-    ]
-  },
-  sensitive_categories: {
-    type: 'multiSelect',
-    label: 'Sensitive Data Categories',
-    options: [
-      { value: 'genetic', label: 'genetic information' },
-      { value: 'mental_health', label: 'mental health' },
-      { value: 'substance_abuse', label: 'substance abuse' },
-      { value: 'hiv', label: 'HIV/AIDS' },
-      { value: 'reproductive', label: 'reproductive health' },
-      { value: 'abuse', label: 'abuse-related information' }
-    ],
-    generateText: (values: any) => {
-      const categories = values.sensitive_categories;
-      if (!categories || categories.length === 0) return '';
-      const formattedCategories = categories.map((cat: string) => {
-        const option = EXPANSION_FIELDS.sensitive_categories.options?.find(opt => opt.value === cat);
-        return option?.label || cat;
-      });
-      return `This data includes sensitive information related to ${formattedCategories.join(', ')}.`;
-    }
-  }
 };
 
 interface MenuState {
@@ -359,7 +182,7 @@ const processDynamicSentence = (
       placeholder: EXPANSION_FIELDS[fieldId].placeholder || '',
       type: EXPANSION_FIELDS[fieldId].type,
       options: EXPANSION_FIELDS[fieldId].options || [],
-      allowOther: EXPANSION_FIELDS[fieldId].allowOther
+      allowCustom: EXPANSION_FIELDS[fieldId].allowCustom
     } as DynamicField : sentence.fields[fieldId];
 
     if (!field) {
@@ -427,7 +250,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     setVisibleFields(newVisibleFields);
   }, [section.fields, values]);
 
-  const handleClick = useCallback((event: React.MouseEvent<HTMLElement>, field: Field) => {
+  const handleClick = useCallback((event: React.MouseEvent<HTMLElement>, field: DynamicField) => {
     if (isDocumentPreview) return;
     
     event.preventDefault();
@@ -474,6 +297,9 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     if (field.type === 'multiSelect') {
       const values = Array.isArray(value) ? value : [value];
       onUpdate(field.id, values);
+    } else if (field.type === 'select') {
+      // For select fields, ensure we pass a single value
+      onUpdate(field.id, Array.isArray(value) ? value[0] : value);
     } else {
       onUpdate(field.id, value);
     }
@@ -492,7 +318,18 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     // For predefined options, use the label
     if (field.options) {
       const option = field.options.find(opt => opt.value === value);
-      if (option) return option.label;
+      if (option) {
+        // If this is an attestation field, use the attestation statement
+        if (option.attestation) {
+          return option.attestation.statement;
+        }
+        return option.label;
+      }
+    }
+    
+    // For expansion fields of type text, just return the value as is
+    if (field.type === 'text') {
+      return value;
     }
     
     // For custom values in display:snake_case format
@@ -507,10 +344,25 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
   };
 
   const handleExpansionUpdate = (fieldId: string, value: any) => {
-    setExpansionValues(prev => ({
-      ...prev,
-      [fieldId]: value
-    }));
+    // For text fields, we want to store the raw value
+    const [parentFieldId, selectedValue, expansionFieldId] = fieldId.split('-');
+    const field = EXPANSION_FIELDS[expansionFieldId];
+    
+    if (field?.type === 'text') {
+      // For text fields, store the raw value
+      onUpdate(fieldId, value);
+      setExpansionValues(prev => ({
+        ...prev,
+        [fieldId]: value
+      }));
+    } else {
+      // For other fields, handle as before
+      onUpdate(fieldId, value);
+      setExpansionValues(prev => ({
+        ...prev,
+        [fieldId]: value
+      }));
+    }
   };
 
   const getExpansionContent = (field: Field, selectedValues: string[]): ExpansionContent[] => {
@@ -536,7 +388,10 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
 
     const expansionContent = selectedValues.map((selectedValue: string) => {
       const mapping = EXPANSION_MAPPINGS[field.id][selectedValue];
-      if (!mapping || !mapping.fields) return null;
+      if (!mapping) return null;
+
+      // Get the list of expansion fields for this value
+      const expansionFields = field.expansionFields?.[selectedValue] || [];
 
       return (
         <Box 
@@ -552,24 +407,23 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
             borderRadius: 1
           }}
         >
-          {mapping.fields.map((expansionField: ExpansionField) => {
+          {expansionFields.map((expansionField: ExpansionField) => {
+            if (!expansionField) return null;
+
             const fieldId = `${field.id}-${selectedValue}-${expansionField.id}`;
             const fieldValue = expansionValues[fieldId] || '';
 
             if (expansionField.type === 'text') {
               return (
                 <Box key={`field-${fieldId}`} sx={{ mb: 2 }}>
-                  <AutocompleteText
-                    value={fieldValue ? [fieldValue] : []}
-                    onChange={(value) => handleExpansionUpdate(fieldId, value[0] || '')}
-                    options={[]}
+                  <TextField
+                    fullWidth
+                    value={fieldValue}
+                    onChange={(e) => handleExpansionUpdate(fieldId, e.target.value)}
                     label={expansionField.label}
                     placeholder={expansionField.placeholder}
-                    description={expansionField.description}
-                    required={expansionField.required}
-                    helperText={expansionField.description}
-                    multiple={false}
-                    allowOther={expansionField.allowOther}
+                    helperText={expansionField.helpText}
+                    variant="outlined"
                   />
                 </Box>
               );
@@ -577,31 +431,18 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
 
             return (
               <Box key={`field-${fieldId}`} sx={{ mb: 2 }}>
-                <TextField
-                  fullWidth
-                  size="small"
+                <AutocompleteText
+                  value={Array.isArray(fieldValue) ? fieldValue : fieldValue ? [fieldValue] : []}
+                  onChange={(value) => handleExpansionUpdate(fieldId, value[0] || '')}
+                  options={expansionField.options || []}
                   label={expansionField.label}
                   placeholder={expansionField.placeholder}
-                  value={fieldValue}
-                  onChange={(e) => handleExpansionUpdate(fieldId, e.target.value)}
-                  select={expansionField.type === 'select'}
-                  type={expansionField.type === 'number' ? 'number' : 'text'}
-                  helperText={expansionField.description}
-                  sx={{ mb: 1 }}
-                >
-                  {expansionField.type === 'select' && expansionField.options?.map((option: OptionType) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      <Box>
-                        <Typography variant="body1">{option.label}</Typography>
-                        {option.description && (
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                            {option.description}
-                          </Typography>
-                        )}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  description={expansionField.description}
+                  required={expansionField.required}
+                  helperText={expansionField.helpText}
+                  multiple={expansionField.type === 'multiSelect'}
+                  allowCustom={expansionField.allowCustom}
+                />
               </Box>
             );
           })}
@@ -612,69 +453,154 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     return expansionContent;
   };
 
-  const renderValue = (field: Field, value: any) => {
-    // Check if this is an expansion field
-    const isExpansionField = field.id.includes('-');
-    let currentField = field;
+  const renderFieldInput = (field: DynamicField) => {
+    // Convert current values to array format for AutocompleteText
+    const valueArray = (() => {
+      if (!values[field.id]) return [];
+      if (Array.isArray(values[field.id])) {
+        // If values are objects with value/label/description, extract just the value
+        return values[field.id].map((v: { value: string; label?: string } | string) => 
+          typeof v === 'object' && v !== null ? v.value : v
+        );
+      }
+      if (typeof values[field.id] === 'string') return [values[field.id]];
+      if (values[field.id]?._selectedValues) return values[field.id]._selectedValues;
+      return [];
+    })();
     
-    if (isExpansionField) {
-      const [parentFieldId, selectedValue, expansionFieldId] = field.id.split('-');
-      const globalExpansionField = EXPANSION_FIELDS[expansionFieldId];
-      if (globalExpansionField) {
-        currentField = {
-          ...globalExpansionField,
-          id: field.id,
-          type: globalExpansionField.type,
-          label: globalExpansionField.label || '',
-          options: globalExpansionField.options || [],
-          allowOther: globalExpansionField.allowOther
-        } as Field;
-      }
+    // Determine if this field should be multiple select
+    const isMultiSelect = field.type === 'multiSelect';
+    
+    // Determine if this field should allow custom values
+    const allowCustom = field.allowCustom !== false && 
+      (field.type === 'text' || field.type === 'textArea' || field.allowCustom);
+
+    switch (field.type) {
+      case 'autocompleteText':
+      case 'multiSelect':
+        return (
+          <Box sx={{ minWidth: 400 }}>
+            <AutocompleteText
+              value={valueArray}
+              onChange={(newValues) => {
+                onUpdate(field.id, newValues);
+              }}
+              options={field.options || []}
+              label={field.label}
+              placeholder={field.placeholder || "Type to search..."}
+              description={field.description}
+              helperText={field.helpText}
+              required={field.required}
+              multiple={true}
+              allowCustom={allowCustom}
+            />
+          </Box>
+        );
+      case 'select':
+        // For select fields, ensure we're passing a single value
+        const selectValue = valueArray.length > 0 ? [valueArray[0]] : [];
+        return (
+          <Box sx={{ minWidth: 400 }}>
+            <AutocompleteText
+              value={selectValue}
+              onChange={(newValues) => {
+                onUpdate(field.id, newValues[0] || '');
+              }}
+              options={field.options || []}
+              label={field.label}
+              placeholder={field.placeholder || "Type to search..."}
+              description={field.description}
+              helperText={field.helpText}
+              required={field.required}
+              multiple={false}
+              allowCustom={allowCustom}
+            />
+          </Box>
+        );
+      case 'text':
+      case 'textArea':
+        return (
+          <Box sx={{ minWidth: 400 }}>
+            <AutocompleteText
+              value={valueArray}
+              onChange={(newValues) => {
+                onUpdate(field.id, newValues[0] || '');
+              }}
+              options={[]}
+              label={field.label}
+              placeholder={field.placeholder || "Type to enter text..."}
+              description={field.description}
+              helperText={field.helpText}
+              required={field.required}
+              multiple={false}
+              allowCustom={true}
+            />
+          </Box>
+        );
+      // ... rest of the cases ...
+      default:
+        return null;
     }
+  };
 
+  const renderValue = (field: DynamicField, value: any) => {
     const displayValue = (() => {
-      if (currentField.type === 'select' || currentField.type === 'radio') {
-        return getDisplayValue(value, currentField);
+      if (field.type === 'select' || field.type === 'radio') {
+        return getDisplayValue(value, field);
       }
 
-      if (currentField.type === 'multiSelect') {
+      if (field.type === 'multiSelect') {
         const selectedValues = Array.isArray(value) ? value : value?._selectedValues || [];
         if (!selectedValues || selectedValues.length === 0) {
-          return currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
+          return field.placeholder?.replace(/[\[\]]/g, '') || field.label;
+        }
+        
+        // Use formatAttestation if available
+        if (field.formatAttestation) {
+          return field.formatAttestation(selectedValues);
         }
         
         // Get all selected options and format them properly
-        const selectedOptions = selectedValues.map((val: string) => getDisplayValue(val, currentField));
+        const selectedOptions = selectedValues.map((val: string) => {
+          // Check if this is an attestation field
+          if (field.options) {
+            const option = field.options.find(opt => opt.value === val);
+            if (option?.attestation) {
+              return option.attestation.statement;
+            }
+          }
+          return getDisplayValue(val, field);
+        });
         
         // Format the list with proper grammar
         return formatList(selectedOptions);
       }
 
-      if (currentField.type === 'text' || currentField.type === 'textArea') {
+      if (field.type === 'text' || field.type === 'textArea') {
         if (isDocumentPreview || readingMode) {
-          return value || `[${currentField.placeholder || currentField.label}]`;
+          return value || `[${field.placeholder || field.label}]`;
         }
-        return value || currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
+        return value || field.placeholder?.replace(/[\[\]]/g, '') || field.label;
       }
 
       if (isDocumentPreview || readingMode) {
-        return value || `[${currentField.placeholder || currentField.label}]`;
+        return value || `[${field.placeholder || field.label}]`;
       }
-      return value || currentField.placeholder?.replace(/[\[\]]/g, '') || currentField.label;
+      return value || field.placeholder?.replace(/[\[\]]/g, '') || field.label;
     })();
 
     if (isDocumentPreview || readingMode) {
-      return <span key={`value-${currentField.id}`}>{displayValue}</span>;
+      return <span key={`value-${field.id}`}>{displayValue}</span>;
     }
 
-    const isEmptyMultiSelect = currentField.type === 'multiSelect' && 
+    const isEmptyMultiSelect = field.type === 'multiSelect' && 
       (!value || (Array.isArray(value) && value.length === 0) || 
        (value?._selectedValues && value._selectedValues.length === 0));
 
     return (
       <Box
         component="div"
-        key={`value-container-${currentField.id}`}
+        key={`value-container-${field.id}`}
         sx={{ 
           display: 'inline',
           maxWidth: 'fit-content',
@@ -684,9 +610,9 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
         }}
       >
         <Box
-          key={`value-box-${currentField.id}`}
+          key={`value-box-${field.id}`}
           component="span"
-          onClick={(e) => handleClick(e, currentField)}
+          onClick={(e) => handleClick(e, field)}
           sx={{
             cursor: 'pointer',
             display: 'inline',
@@ -715,9 +641,9 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
             }
           }}
         >
-          <span key={`display-value-${currentField.id}`}>{displayValue}</span>
+          <span key={`display-value-${field.id}`}>{displayValue}</span>
           <EditIcon 
-            key={`edit-icon-${currentField.id}`}
+            key={`edit-icon-${field.id}`}
             className="edit-icon" 
             sx={{
               opacity: 0,
@@ -739,7 +665,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
     );
   };
 
-  const renderPlaceholder = (field: Field, index: number) => {
+  const renderPlaceholder = (field: DynamicField, index: number) => {
     // Convert the placeholder text to a question format
     const getQuestionText = (text: string) => {
       // Remove any existing question marks and brackets
@@ -845,7 +771,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
         placeholder: EXPANSION_FIELDS[fieldId].placeholder || '',
         type: EXPANSION_FIELDS[fieldId].type,
         options: EXPANSION_FIELDS[fieldId].options || [],
-        allowOther: EXPANSION_FIELDS[fieldId].allowOther
+        allowCustom: EXPANSION_FIELDS[fieldId].allowCustom
       } as DynamicField : section.fields.find(f => f.id === fieldId);
 
       if (!field) {
@@ -948,62 +874,64 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
       }
     });
 
+    // Handle dynamic content
+    if (section.dynamicContent) {
+      section.dynamicContent.forEach((content, index) => {
+        const shouldShow = shouldShowConditionalContent(content.condition);
+        if (shouldShow) {
+          result.push(
+            <Box
+              key={`dynamic-${index}`}
+              component={motion.div}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              sx={{ mt: 2 }}
+            >
+              {renderTemplate(content.content)}
+            </Box>
+          );
+        }
+      });
+    }
+
+    // Handle conditional sections
+    if (section.conditionalSections) {
+      section.conditionalSections.forEach((conditionalSection, index) => {
+        const shouldShow = shouldShowConditionalContent(conditionalSection.condition);
+        if (shouldShow) {
+          result.push(
+            <Box
+              key={`conditional-${index}`}
+              component={motion.div}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              sx={{ mt: 2 }}
+            >
+              {renderTemplate(conditionalSection.template)}
+            </Box>
+          );
+        }
+      });
+    }
+
     return result;
   };
 
-  const renderFieldInput = (field: Field) => {
-    // Check if this is an expansion field
-    const isExpansionField = menuState.fieldId?.includes('-');
-    let currentField = field;
-    let currentValues = values[menuState.fieldId!];
-
-    if (isExpansionField) {
-      const [parentFieldId, selectedValue, expansionFieldId] = menuState.fieldId!.split('-');
-      const globalExpansionField = EXPANSION_FIELDS[expansionFieldId];
-      if (globalExpansionField) {
-        currentField = {
-          ...globalExpansionField,
-          id: menuState.fieldId!,
-          type: globalExpansionField.type,
-          label: globalExpansionField.label || '',
-          options: globalExpansionField.options || [],
-          allowOther: globalExpansionField.allowOther
-        } as DynamicField;
-        // For expansion fields, we need to look up the value in the correct place
-        const fullFieldId = `${parentFieldId}-${selectedValue}-${expansionFieldId}`;
-        currentValues = values[fullFieldId];
-      }
-    }
-
-    // Convert current values to array format for AutocompleteText
-    const valueArray = (() => {
-      if (!currentValues) return [];
-      if (Array.isArray(currentValues)) return currentValues;
-      if (typeof currentValues === 'string') return [currentValues];
-      if (currentValues?._selectedValues) return currentValues._selectedValues;
-      return [];
-    })();
+  const shouldShowConditionalContent = (condition: { fieldId: string; value: any; operator?: string }) => {
+    const value = values[condition.fieldId];
     
-    return (
-      <AutocompleteText
-        value={valueArray}
-        onChange={(newValues) => {
-          if (currentField.type === 'multiSelect') {
-            onUpdate(menuState.fieldId!, newValues);
-          } else {
-            onUpdate(menuState.fieldId!, newValues[0] || '');
-          }
-        }}
-        options={currentField.options || []}
-        label={currentField.label}
-        placeholder={currentField.placeholder || "Type to search..."}
-        description={currentField.description}
-        required={currentField.required}
-        helperText={currentField.description}
-        multiple={currentField.type === 'multiSelect'}
-        allowOther={currentField.allowOther !== false}
-      />
-    );
+    switch (condition.operator) {
+      case 'contains':
+        return Array.isArray(value) && value.includes(condition.value);
+      case 'not':
+        return value !== condition.value;
+      case 'in':
+        return Array.isArray(condition.value) && condition.value.includes(value);
+      default:
+        return value === condition.value;
+    }
   };
 
   return (
@@ -1135,7 +1063,7 @@ export const DynamicTextPreview: React.FC<DynamicTextPreviewProps> = ({
                         type: globalExpansionField.type,
                         label: globalExpansionField.label || '',
                         options: globalExpansionField.options || [],
-                        allowOther: globalExpansionField.allowOther
+                        allowCustom: globalExpansionField.allowCustom
                       } as Field;
                       return renderFieldInput(field);
                     }

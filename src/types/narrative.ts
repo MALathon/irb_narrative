@@ -1,3 +1,20 @@
+export type AttestationType = 'phase_1_limitation' | 'data_privacy' | 'security_control' | 'regulatory_compliance';
+
+export interface Attestation {
+  type: AttestationType;
+  statement: string;
+  severity: 'critical' | 'important' | 'advisory';
+  requiresEvidence: boolean;
+  regulatoryReference?: string;
+}
+
+export interface Option {
+  value: string;
+  label: string;
+  description?: string;
+  attestation?: Attestation;
+}
+
 export interface FieldOption {
   value: string;
   label: string;
@@ -6,12 +23,6 @@ export interface FieldOption {
   triggers?: {
     showFields: string[];
   };
-}
-
-export interface Option {
-  value: string;
-  label: string;
-  description?: string;
 }
 
 export interface ValidationStatus {
@@ -51,57 +62,46 @@ export interface OptionType {
 
 export interface Field {
   id: string;
-  type: 'text' | 'textArea' | 'select' | 'multiSelect' | 'number' | 'date' | 'radio' | 'checkbox' | 'autocompleteText' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
+  type: 'text' | 'select' | 'multiSelect' | 'radio' | 'checkbox' | 'number' | 'textArea' | 'autocompleteText';
   label: string;
   placeholder?: string;
   description?: string;
   helpText?: string;
   options?: Option[];
-  allowOther?: boolean;
-  freeSolo?: boolean;
-  suggestions?: string[];
-  validation?: {
-    type: string;
-    value: any;
-    message?: string;
-  }[];
   required?: boolean;
   optional?: boolean;
-  dependsOn?: {
-    fieldId: string;
-    value: any;
-    operator: 'equals' | 'contains';
-  };
-  expansionFields?: {
-    [key: string]: Field[];
-  };
+  validation?: Validation[];
+  dependsOn?: DependsOn;
+  expansionFields?: { [key: string]: ExpansionField[] };
+  allowCustom?: boolean;
+  formatAttestation?: (values: string[]) => string;
+  generateText?: (values: any) => string;
 }
 
-export interface DynamicField {
-  id: string;
-  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText';
-  label: string;
-  placeholder?: string;
-  description?: string;
-  options?: Option[];
-  expansionFields?: {
-    [key: string]: ExpansionField[];
-  };
-  allowOther?: boolean;
+export interface DynamicField extends Field {
   freeSolo?: boolean;
   suggestions?: string[];
-  validation?: {
-    type: string;
-    value: any;
-    message?: string;
-  }[];
-  required?: boolean;
+  validation?: Validation[];
   optional?: boolean;
-  dependsOn?: {
+}
+
+export interface DynamicContent {
+  condition: {
     fieldId: string;
     value: any;
-    operator: 'equals' | 'contains';
+    operator?: string;
   };
+  content: string;
+}
+
+export interface ConditionalSection {
+  condition: {
+    fieldId: string;
+    value: any;
+    operator?: string;
+  };
+  template: string;
+  fields?: Field[];
 }
 
 export interface NarrativeSection {
@@ -113,6 +113,8 @@ export interface NarrativeSection {
   guidance?: string;
   template: string;
   fields: Field[];
+  dynamicContent?: DynamicContent[];
+  conditionalSections?: ConditionalSection[];
 }
 
 export interface NarrativeModule {
@@ -133,11 +135,18 @@ export interface NarrativeSchema {
 
 export interface ExpansionField {
   id: string;
-  type: string;
+  type: 'number' | 'select' | 'multiSelect' | 'text' | 'textArea' | 'date' | 'radio' | 'checkbox' | 'autocompleteText' | 'research_gap' | 'supporting_literature' | 'research_objective' | 'methodology_approach' | 'prior_evidence';
   label: string;
   placeholder?: string;
   description?: string;
+  helpText?: string;
   options?: Option[];
-  validation?: Validation[];
+  validation?: {
+    type: 'required' | 'pattern' | 'custom' | 'min' | 'max';
+    value?: any;
+    message?: string;
+  }[];
   required?: boolean;
+  allowCustom?: boolean;
+  freeSolo?: boolean;
 } 

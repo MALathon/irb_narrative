@@ -69,9 +69,9 @@ export const DynamicNarrativeSection: React.FC<DynamicNarrativeSectionProps> = (
             placeholder={field.placeholder}
             description={field.description}
             required={field.required}
-            helperText={field.helpText}
+            helperText={field.description}
             multiple={true}
-            allowOther={field.allowOther}
+            allowCustom={field.allowCustom}
           />
         </Box>
       );
