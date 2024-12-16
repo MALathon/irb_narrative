@@ -24,9 +24,14 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/jest": "^29.5.14",
+    "@types/lodash": "^4.17.13",
     "@types/node": "^20.10.5",
     "@types/react": "^18.2.42",
     "@types/react-dom": "^18.2.17",
+    "@types/testing-library__react": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.2.1",
@@ -47,5 +52,14 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "jest": {
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.ts"
+    ],
+    "moduleNameMapper": {
+      "\\.(css|less|scss|sass)$": "identity-obj-proxy"
+    },
+    "testEnvironment": "jsdom"
   }
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ThemeProvider,
   createTheme,
@@ -11,26 +11,29 @@ import {
   IconButton,
   Button,
   useMediaQuery,
+  Grid,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Description as DescriptionIcon,
-  Article as ArticleIcon,
+  Preview as PreviewIcon,
+  Settings as SettingsIcon,
+  Help as HelpIcon,
+  Notifications as NotificationsIcon,
+  AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
-import { NarrativeProvider, useNarrative } from './context/NarrativeContext';
-import { NarrativeView } from './components/NarrativeView';
-import { modules } from './data/modules';
+import { ModuleView } from "./components/form/ModuleView";
+import { FormNavigator } from "./components/form/Navigator";
+import { FormPreview } from "./components/form/Preview";
+import { moduleRegistry, moduleFlow } from "./data/modules";
+import { FormValues } from './types/form';
+
+const DRAWER_WIDTH = 400;
 
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#2196f3',
-      light: '#64b5f6',
-      dark: '#1976d2',
-    },
-    secondary: {
-      main: '#f50057',
+      main: '#1976d2',
     },
     background: {
       default: '#f5f5f5',
@@ -38,24 +41,9 @@ const theme = createTheme({
     },
   },
   typography: {
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
   },
   components: {
-    MuiTextField: {
-      defaultProps: {
-        variant: 'outlined',
-      },
-    },
-    MuiSelect: {
-      defaultProps: {
-        variant: 'outlined',
-      },
-    },
     MuiButton: {
       styleOverrides: {
         root: {
@@ -63,143 +51,119 @@ const theme = createTheme({
         },
       },
     },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-        },
-      },
-    },
   },
 });
 
-interface NarrativeContentProps {
+interface ContentProps {
   isPreviewOpen: boolean;
   onPreviewClose: () => void;
+  values: FormValues;
+  onValuesChange: (values: FormValues) => void;
 }
 
-const NarrativeContent: React.FC<NarrativeContentProps> = ({
+const Content: React.FC<ContentProps> = ({
   isPreviewOpen,
   onPreviewClose,
+  values,
+  onValuesChange,
 }) => {
-  const { state, updateField } = useNarrative();
+  const currentModule = moduleRegistry[moduleFlow[0].id];
   
   return (
-    <Container maxWidth={false}>
-      <NarrativeView
-        sections={modules.flatMap(m => m.sections)}
-        values={state}
-        onUpdate={updateField}
-        isPreviewOpen={isPreviewOpen}
-        onPreviewClose={onPreviewClose}
+    <Container maxWidth={false} disableGutters>
+      <Grid container spacing={3} sx={{ p: 3 }}>
+        <Grid item sx={{ width: DRAWER_WIDTH }}>
+          <FormNavigator
+            module={currentModule}
+            values={values}
+            onPreviewClick={() => onPreviewClose()}
+            DRAWER_WIDTH={DRAWER_WIDTH}
+          />
+        </Grid>
+
+        <Grid item xs>
+          <ModuleView
+            module={currentModule}
+            initialValues={values}
+            onValuesChange={onValuesChange}
+          />
+        </Grid>
+      </Grid>
+
+      <FormPreview
+        isOpen={isPreviewOpen}
+        onClose={onPreviewClose}
+        module={currentModule}
+        values={values}
       />
     </Container>
   );
 };
 
 const App: React.FC = () => {
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [formValues, setFormValues] = useState<FormValues>({});
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <NarrativeProvider>
-        <Box 
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        <AppBar 
+          position="static" 
+          color="default" 
+          elevation={1}
           sx={{ 
-            height: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
+            backgroundColor: 'background.paper',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
           }}
         >
-          <AppBar 
-            position="fixed"
-            elevation={0}
-            sx={{
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              backgroundColor: 'background.paper',
-              zIndex: (theme) => theme.zIndex.drawer + 1,
-              '& .MuiToolbar-root': {
-                minHeight: '40px !important',
-                padding: '0 16px',
-              },
-            }}
-          >
-            <Toolbar variant="dense" disableGutters>
-              {isMobile && (
-                <IconButton
-                  edge="start"
-                  color="inherit"
-                  aria-label="menu"
-                  size="small"
-                  sx={{ mr: 1 }}
-                >
-                  <MenuIcon fontSize="small" />
-                </IconButton>
-              )}
-              
-              <DescriptionIcon 
-                sx={{ 
-                  mr: 1,
-                  color: 'primary.main',
-                  fontSize: '20px',
-                }} 
-              />
-              
-              <Typography 
-                variant="subtitle2" 
-                component="div" 
-                sx={{ 
-                  flexGrow: 1,
-                  color: 'text.primary',
-                }}
+          <Toolbar>
+            {isMobile && (
+              <IconButton
+                edge="start"
+                color="inherit"
+                aria-label="menu"
+                sx={{ mr: 2 }}
               >
-                IRB Protocol Builder
-              </Typography>
-
-              <Button
-                startIcon={<ArticleIcon sx={{ fontSize: '18px' }} />}
-                onClick={() => setIsPreviewOpen(true)}
-                sx={{ 
-                  mr: 1,
-                  py: 0.5,
-                  minHeight: '28px',
-                }}
-                variant="outlined"
-                color="primary"
-                size="small"
-              >
-                Preview Full Document
-              </Button>
-            </Toolbar>
-          </AppBar>
-
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100vh',
-              pt: '40px',
-            }}
-          >
-            <Box
-              component="main"
-              sx={{
-                flexGrow: 1,
-                height: 'calc(100vh - 40px)',
-                overflow: 'hidden',
-              }}
+                <MenuIcon />
+              </IconButton>
+            )}
+            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+              IRB Protocol Builder
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<PreviewIcon />}
+              onClick={() => setIsPreviewOpen(true)}
+              sx={{ mr: 2 }}
             >
-              <NarrativeContent 
-                isPreviewOpen={isPreviewOpen} 
-                onPreviewClose={() => setIsPreviewOpen(false)} 
-              />
-            </Box>
-          </Box>
+              Preview Full Document
+            </Button>
+            <IconButton color="inherit">
+              <SettingsIcon />
+            </IconButton>
+            <IconButton color="inherit">
+              <HelpIcon />
+            </IconButton>
+            <IconButton color="inherit">
+              <NotificationsIcon />
+            </IconButton>
+            <IconButton color="inherit">
+              <AccountCircleIcon />
+            </IconButton>
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
+          <Content
+            isPreviewOpen={isPreviewOpen}
+            onPreviewClose={() => setIsPreviewOpen(false)}
+            values={formValues}
+            onValuesChange={setFormValues}
+          />
         </Box>
-      </NarrativeProvider>
+      </Box>
     </ThemeProvider>
   );
 };
