@@ -1,6 +1,14 @@
-import React from 'react';
-import { FormControl, FormHelperText, TextField, Select, MenuItem, Box } from '@mui/material';
-import { Field, FieldValue, ValidationError } from '../../types/form';
+import React, { useMemo, memo } from 'react';
+import { FormControl, FormHelperText, TextField, Select, MenuItem } from '@mui/material';
+import { Field, FieldValue, ValidationError, SelectOption } from '../../types/form';
+
+const DEBUG_MODE = false;
+
+const debugLog = (message: string, data: any) => {
+  if (DEBUG_MODE) {
+    console.error(message, data);
+  }
+};
 
 interface FieldRendererProps {
   field: Field;
@@ -11,7 +19,42 @@ interface FieldRendererProps {
   isVisible?: boolean;
 }
 
-export const FieldRenderer: React.FC<FieldRendererProps> = ({
+interface ExpansionValue extends SelectOption {
+  expansions?: Record<string, any>;
+}
+
+const MemoizedSelect = memo(({ field, value, handleChange, hasError, errorMessage, path }: {
+  field: Field;
+  value: string;
+  handleChange: (value: string) => void;
+  hasError: boolean;
+  errorMessage: string;
+  path: string[];
+}) => (
+  <FormControl error={hasError} fullWidth>
+    <Select
+      id={path.join('.')}
+      name={path.join('.')}
+      value={value}
+      onChange={e => handleChange(e.target.value as string)}
+      displayEmpty
+      size="small"
+      sx={{ minWidth: 200 }}
+    >
+      <MenuItem value="">
+        <em>Select {field.label}</em>
+      </MenuItem>
+      {field.options?.map(option => (
+        <MenuItem key={option.value} value={option.value}>
+          {option.label}
+        </MenuItem>
+      ))}
+    </Select>
+    {hasError && <FormHelperText>{errorMessage}</FormHelperText>}
+  </FormControl>
+));
+
+export const FieldRenderer: React.FC<FieldRendererProps> = memo(({
   field,
   value,
   path,
@@ -19,20 +62,85 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   errors = [],
   isVisible = true
 }) => {
-  const handleChange = (newValue: FieldValue) => {
-    onUpdate(path, newValue);
-  };
+  const handleChange = useMemo(() => 
+    (newValue: FieldValue) => {
+      debugLog('Value update:', {
+        action: 'handleChange',
+        field: field.id,
+        path: path.join('.'),
+        oldValue: value,
+        newValue,
+        isExpansionPath: path.some(p => p.startsWith('expansion_')),
+        parentPath: path.slice(0, -1).join('.'),
+        parentValue: value && typeof value === 'object' ? value : undefined
+      });
+
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        const expansionKeys = Object.keys(value).filter(k => k.startsWith('expansion_'));
+        if (expansionKeys.length > 0) {
+          const updatedValue: ExpansionValue = {
+            ...value as ExpansionValue,
+            value: typeof newValue === 'string' ? newValue : String(newValue)
+          };
+          onUpdate(path, updatedValue);
+          return;
+        }
+      }
+
+      if (field.type === 'select' && field.options && typeof newValue === 'string') {
+        const selectedOption = field.options.find(opt => opt.value === newValue);
+        if (selectedOption && field.expansions?.[selectedOption.value]) {
+          const expansionKey = `expansion_${newValue}`;
+          const updatedValue: ExpansionValue = {
+            value: newValue,
+            label: selectedOption.label,
+            [expansionKey]: {}
+          };
+          onUpdate(path, updatedValue);
+          return;
+        }
+      }
+
+      onUpdate(path, newValue);
+    },
+    [path, onUpdate, field.id, value, field.type, field.options, field.expansions]
+  );
 
   const hasError = errors.length > 0;
   const errorMessage = errors.map(e => e.message).join(', ');
 
-  const getSelectValue = (val: FieldValue): string => {
-    if (val === null || val === undefined) return '';
-    if (typeof val === 'object' && val !== null) {
-      return String((val as any).value || '');
+  const selectValue = useMemo(() => {
+    if (value === null || value === undefined) {
+      return '';
     }
-    return String(val);
-  };
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const expansionKeys = Object.keys(value).filter(k => k.startsWith('expansion_'));
+      const hasValue = 'value' in value;
+      
+      debugLog('Parent value transformation:', {
+        fieldId: field.id,
+        path: path.join('.'),
+        originalValue: value,
+        hasValue,
+        valueProperty: hasValue ? (value as ExpansionValue).value : undefined,
+        expansionKeys,
+        willReturnEmpty: !hasValue && expansionKeys.length > 0,
+        parentPath: path.slice(0, -1).join('.'),
+        isExpansionPath: path.some(p => p.startsWith('expansion_'))
+      });
+      
+      if (!hasValue && expansionKeys.length > 0) {
+        return expansionKeys[0].replace('expansion_', '');
+      }
+      
+      return hasValue ? String((value as ExpansionValue).value) : '';
+    }
+
+    return String(value);
+  }, [value, field.id, path]);
+
+  if (!isVisible) return null;
 
   const renderField = () => {
     switch (field.type) {
@@ -40,7 +148,9 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         return (
           <FormControl error={hasError} fullWidth>
             <TextField
-              value={(value as string) || ''}
+              id={path.join('.')}
+              name={path.join('.')}
+              value={typeof value === 'string' ? value : ''}
               onChange={e => handleChange(e.target.value)}
               placeholder={field.label}
               label={field.label}
@@ -54,25 +164,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
       case 'select':
         return (
-          <FormControl error={hasError} fullWidth>
-            <Select
-              value={getSelectValue(value)}
-              onChange={e => handleChange(e.target.value)}
-              displayEmpty
-              size="small"
-              sx={{ minWidth: 200 }}
-            >
-              <MenuItem value="">
-                <em>Select {field.label}</em>
-              </MenuItem>
-              {field.options?.map(option => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-            {hasError && <FormHelperText>{errorMessage}</FormHelperText>}
-          </FormControl>
+          <MemoizedSelect
+            field={field}
+            value={selectValue}
+            handleChange={handleChange}
+            hasError={hasError}
+            errorMessage={errorMessage}
+            path={path}
+          />
         );
 
       case 'multiSelect':
@@ -80,6 +179,8 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         return (
           <FormControl error={hasError} fullWidth>
             <Select
+              id={path.join('.')}
+              name={path.join('.')}
               multiple
               value={multiValue}
               onChange={e => {
@@ -105,13 +206,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
       default:
         return <div>Unsupported field type: {field.type}</div>;
     }
-  };
+  }
 
-  if (!isVisible) return null;
-
-  return (
-    <Box sx={{ display: 'inline-block' }}>
-      {renderField()}
-    </Box>
-  );
-}; 
+  return renderField();
+}); 

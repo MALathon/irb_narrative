@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { get, set, cloneDeep } from 'lodash';
 import { ModuleConfig, FormValues, FieldValue, ValidationError, Field } from '../types/form';
 import { validateSentence, validateValue } from '../utils/validation';
-import { isFieldComplete } from '../utils/form';
 
 interface UseFormStateReturn {
   values: FormValues;
@@ -12,6 +11,7 @@ interface UseFormStateReturn {
   validateField: (path: string[]) => ValidationError[];
   validateForm: () => boolean;
   isFieldVisible: (path: string[]) => boolean;
+  setExpandedPaths: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 interface ValidationState {
@@ -73,159 +73,226 @@ const getFieldFromPath = (
     return { fieldId };
   }
 
-  let current: any = submodule.sentence;
+  interface CurrentContext {
+    fields?: Record<string, Field>;
+    children?: CurrentContext[];
+    template?: string;
+    expansions?: Record<string, {
+      fields: Record<string, Field>;
+      children: CurrentContext[];
+      template: string;
+    }>;
+  }
+
+  let current: CurrentContext = submodule.sentence;
   let parentField: Field | undefined;
+  let lastParentField: Field | undefined;
   
-  // Walk through the path to find the field, starting after the submodule ID
   for (let i = 1; i < path.length - 1; i++) {
     const segment = path[i];
     if (!current) break;
     
-    // Handle expansion paths
     if (segment.startsWith('expansion_')) {
       const parentFieldId = path[i-1];
-      parentField = current?.fields?.[parentFieldId];
+      
+      if (current.fields?.[parentFieldId]) {
+        parentField = current.fields[parentFieldId];
+        lastParentField = parentField;
+      } else {
+        return { fieldId };
+      }
+
       const expansionKey = segment.replace('expansion_', '');
-      if (parentField?.expansions?.[expansionKey]) {
-        current = parentField.expansions[expansionKey];
+
+      if (!parentField.expansions) {
+        parentField.expansions = {};
+      }
+
+      if (!(expansionKey in parentField.expansions)) {
+        parentField.expansions[expansionKey] = {
+          fields: {},
+          children: [],
+          template: ''
+        };
+      }
+
+      current = parentField.expansions[expansionKey];
+      
+      if (!current.fields) {
+        current.fields = {};
+      }
+      
+      if (i === path.length - 2) {
+        const field = current.fields[fieldId];
+        
+        if (!field && parentField.expansions[expansionKey].fields?.[fieldId]) {
+          const def = parentField.expansions[expansionKey].fields[fieldId];
+          current.fields[fieldId] = {
+            ...def,
+            id: fieldId,
+            type: def.type || 'text',
+            label: def.label || fieldId,
+            validation: def.validation || []
+          };
+        }
+        
+        return {
+          field: current.fields[fieldId],
+          fieldId,
+          parentField: lastParentField
+        };
       }
     } else if (segment.startsWith('child_')) {
       const childIndex = parseInt(segment.replace('child_', ''));
-      current = current?.children?.[childIndex];
+      const currentContext = current as CurrentContext;
+      lastParentField = currentContext.fields?.[path[i+1]];
+      current = currentContext.children?.[childIndex] || { fields: {}, children: [] };
     } else {
-      current = current?.fields?.[segment];
+      const currentContext = current as CurrentContext;
+      const nextField = currentContext.fields?.[segment];
+      if (nextField) {
+        lastParentField = currentContext.fields?.[segment];
+        current = { fields: { [segment]: nextField }, children: [] };
+      } else {
+        return { fieldId };
+      }
     }
   }
 
+  const field = current?.fields?.[fieldId];
   return {
-    field: current?.fields?.[fieldId],
+    field,
     fieldId,
-    parentField
+    parentField: lastParentField
   };
 };
 
 export const useFormState = (
-  module: ModuleConfig,
+  config: ModuleConfig,
   initialValues: FormValues = {}
 ): UseFormStateReturn => {
   const [values, setValues] = useState<FormValues>(initialValues);
   const [expandedPaths, setExpandedPaths] = useState<string[]>([]);
   const [validation, setValidation] = useState<ValidationState>({
     errors: {},
-    isValid: true
+    isValid: false
   });
 
-  const validateField = useCallback((path: string[]): ValidationError[] => {
-    const { field } = getFieldFromPath(module, path);
-    const value = get(values, path.join('.')) as FieldValue;
-
-    if (!field) return [];
-    return validateValue(value, field.validation);
-  }, [values, module]);
-
-  const validateForm = useCallback((): boolean => {
-    let allErrors: Record<string, ValidationError[]> = {};
-    
-    // Validate each submodule
-    for (const submoduleId of module.submoduleOrder) {
-      const submodule = module.submodules[submoduleId];
-      const submoduleErrors = validateSentence(submodule.sentence, values);
-      allErrors = { ...allErrors, ...submoduleErrors };
-    }
-
-    const isValid = Object.keys(allErrors).length === 0;
-    setValidation({ errors: allErrors, isValid });
-    return isValid;
-  }, [values, module]);
-
-  const checkVisibility = useCallback((path: string[]): boolean => {
-    const { field, fieldId } = getFieldFromPath(module, path);
-    if (!field) return true;
-
-    // Always show root level fields
-    if (path.length === 2) {
-      return true;
-    }
-
-    // For expansion fields
-    const expansionIndex = path.findIndex(p => p.startsWith('expansion_'));
-    if (expansionIndex !== -1) {
-      const parentPath = path.slice(0, expansionIndex);
-      const parentValue = get(values, parentPath.join('.'));
-      const expansionKey = path[expansionIndex].replace('expansion_', '');
-      return parentValue === expansionKey;
-    }
-
-    return checkFieldVisibility(field, fieldId, values);
-  }, [values, module]);
-
   const updateValue = useCallback((path: string[], value: FieldValue) => {
-    setValues(prev => {
-      const newValues = cloneDeep(prev);
-      const { field } = getFieldFromPath(module, path);
-      const pathStr = path.join('.');
+    const parentPath = path.slice(0, -1);
+    const expansionSegment = path.find(p => p.startsWith('expansion_'));
+    
+    setValues(prevValues => {
+      const newValues = cloneDeep(prevValues);
       
-      // Set the new value
-      set(newValues, pathStr, value);
-      
-      // Handle expansions recursively
-      const expansionIndex = path.findIndex(p => p.startsWith('expansion_'));
-      const isExpansionField = expansionIndex !== -1;
-      
-      if (field?.expansions && !isExpansionField) {
-        const oldValue = get(prev, pathStr);
-        if (oldValue !== value) {
-          // Only clear expansion values for options that are no longer selected
-          Object.keys(field.expansions).forEach(expansionKey => {
-            // Skip clearing if this is the newly selected value
-            if (expansionKey === value) return;
-            
-            const expansionPath = [...path, `expansion_${expansionKey}`].join('.');
-            const expansionFields = field.expansions?.[expansionKey]?.fields || {};
-            
-            // Clear all nested fields recursively
-            Object.keys(expansionFields).forEach(fieldKey => {
-              const nestedPath = `${expansionPath}.${fieldKey}`;
-              if (get(newValues, nestedPath)) {
-                set(newValues, nestedPath, undefined);
-              }
-            });
-          });
+      // If this is an expansion field update
+      if (expansionSegment) {
+        const parentPathStr = parentPath.join('.');
+        const originalParentPath = path.slice(0, path.indexOf(expansionSegment));
+        const originalParentValue = get(newValues, originalParentPath.join('.'));
+        
+        // Get current parent value
+        const currentParentValue = get(newValues, parentPathStr);
+        
+        // Create or update parent object
+        const updatedParentValue: { value?: FieldValue; [key: string]: FieldValue | FormValues | undefined } = 
+          typeof currentParentValue === 'object' && currentParentValue !== null
+            ? Object.entries(currentParentValue).reduce((acc, [key, val]) => ({
+                ...acc,
+                [key]: val
+              }), {} as { [key: string]: FieldValue | FormValues | undefined })
+            : {};
+        
+        // Always ensure the original value is preserved
+        if (typeof originalParentValue !== 'object' || originalParentValue === null) {
+          updatedParentValue.value = originalParentValue;
         }
+        
+        // Set the parent object first
+        set(newValues, parentPathStr, updatedParentValue);
+        
+        // Then set the expansion field value
+        set(newValues, path.join('.'), value);
+        
+        return newValues;
+      }
+      
+      // For non-expansion fields
+      const currentValue = get(newValues, path.join('.'));
+      if (typeof currentValue === 'object' && currentValue !== null) {
+        // Preserve expansion fields when updating a parent
+        const expansionFields = Object.entries(currentValue)
+          .filter(([key]) => key.startsWith('expansion_'))
+          .reduce((acc, [key, val]) => ({ ...acc, [key]: val }), {});
+          
+        set(newValues, path.join('.'), {
+          value,
+          ...expansionFields
+        });
+      } else {
+        set(newValues, path.join('.'), value);
       }
       
       return newValues;
     });
 
-    // Update expanded paths
+    // Update expanded paths when a value changes
     const pathStr = path.join('.');
-    setExpandedPaths(prev => {
-      const newPaths = prev.filter(p => !p.startsWith(`${pathStr}.`));
-      if (isFieldComplete(value)) {
-        newPaths.push(pathStr);
+    setExpandedPaths(prev => prev.includes(pathStr) ? prev : [...prev, pathStr]);
+  }, [values]);
+
+  const validateField = useCallback((path: string[]): ValidationError[] => {
+    const { field } = getFieldFromPath(config, path);
+    if (!field) return [];
+    
+    const value = get(values, path.join('.')) as FieldValue;
+    return validateValue(value, field.validation || []);
+  }, [config, values]);
+
+  const validateForm = useCallback((): boolean => {
+    const errors: Record<string, ValidationError[]> = {};
+    let isValid = true;
+
+    // Validate each submodule
+    for (const submoduleId of config.submoduleOrder) {
+      const submodule = config.submodules[submoduleId];
+      const submoduleErrors = validateSentence(submodule.sentence, values);
+      Object.assign(errors, submoduleErrors);
+      if (Object.keys(submoduleErrors).length > 0) {
+        isValid = false;
       }
-      return newPaths;
-    });
+    }
 
-    // Validate the updated field
-    const fieldErrors = validateField(path);
-    setValidation(prev => ({
-      ...prev,
-      errors: {
-        ...prev.errors,
-        [pathStr]: fieldErrors
-      },
-      isValid: Object.keys(prev.errors).length === 0 && fieldErrors.length === 0
-    }));
-  }, [validateField, module, getFieldFromPath]);
+    setValidation({ errors, isValid });
+    return isValid;
+  }, [config, values]);
 
-  return {
+  const isFieldVisible = useCallback((path: string[]): boolean => {
+    const { field, fieldId } = getFieldFromPath(config, path);
+    if (!field) return false;
+
+    return checkFieldVisibility(field, fieldId, values);
+  }, [config, values]);
+
+  const memoizedReturn = useMemo(() => ({
     values,
     updateValue,
     expandedPaths,
     validation,
     validateField,
     validateForm,
-    isFieldVisible: checkVisibility
-  };
+    isFieldVisible,
+    setExpandedPaths
+  }), [
+    values,
+    updateValue,
+    expandedPaths,
+    validation,
+    validateField,
+    validateForm,
+    isFieldVisible,
+    setExpandedPaths
+  ]);
+
+  return memoizedReturn;
 }; 

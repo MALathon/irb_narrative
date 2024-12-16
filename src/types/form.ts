@@ -16,7 +16,12 @@ export interface ValidationError {
   type: string;
 }
 
-export type FieldValue = string | string[] | number | boolean | null;
+export type FieldValue = string | string[] | number | boolean | null | SelectOption;
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
 
 export interface Field {
   id: string;

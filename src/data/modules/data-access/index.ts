@@ -1,31 +1,26 @@
 import { ModuleConfig } from '../../../types/form';
 import { dataSourcesSubmodule } from './data-sources';
-import { timelineSubmodule } from './data-timeline';
-
-// Define submodule flow and their sentence structures
-export const submodules = {
-  sources: {
-    id: 'data_sources',
-    title: 'Data Sources',
-    required: true,
-    dependencies: [],
-    sentence: dataSourcesSubmodule
-  },
-  timeline: {
-    id: 'timeline',
-    title: 'Timeline & Access',
-    required: true,
-    dependencies: ['data_sources'],
-    sentence: timelineSubmodule
-  }
-};
-
-// Define the order of submodules
-export const submoduleOrder = ['sources', 'timeline'];
+import { dataTimelineSubmodule } from './data-timeline';
 
 export const dataAccessModule: ModuleConfig = {
   id: 'data_access',
-  name: 'Data Access & Timeline',
-  submodules,
-  submoduleOrder
+  name: 'Data Access',
+  description: 'Define how study data will be accessed and managed',
+  submodules: {
+    sources: {
+      id: 'sources',
+      title: 'Data Sources',
+      required: true,
+      dependencies: [],
+      sentence: dataSourcesSubmodule
+    },
+    timeline: {
+      id: 'timeline',
+      title: 'Data Timeline',
+      required: true,
+      dependencies: ['sources'],
+      sentence: dataTimelineSubmodule
+    }
+  },
+  submoduleOrder: ['sources', 'timeline']
 }; 

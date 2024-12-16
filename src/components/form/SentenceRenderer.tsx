@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import { get } from 'lodash';
@@ -14,32 +14,70 @@ interface FormSentenceRendererProps {
   isFieldVisible?: (path: string[]) => boolean;
 }
 
-const renderTemplate = (
-  template: string,
-  fields: Record<string, React.ReactNode>
-): React.ReactNode[] => {
-  const parts = template.split(/(\{[^}]+\})/g);
-  
-  return parts.map((part, index) => {
-    const match = part.match(/\{(\w+)\}/);
-    if (!match) return part;
+const MemoizedFieldRenderer = memo(({ 
+  field, 
+  value, 
+  fieldPath, 
+  onUpdate, 
+  fieldErrors, 
+  isVisible 
+}: {
+  field: any;
+  value: FieldValue;
+  fieldPath: string[];
+  onUpdate: (path: string[], value: FieldValue) => void;
+  fieldErrors: ValidationError[];
+  isVisible: boolean;
+}) => (
+  <Box 
+    component={motion.div}
+    initial={{ opacity: 0, x: -10 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.3 }}
+    sx={{ display: 'inline-block', mx: 1 }}
+  >
+    <FieldRenderer
+      field={field}
+      value={value}
+      path={fieldPath}
+      onUpdate={onUpdate}
+      errors={fieldErrors}
+      isVisible={isVisible}
+    />
+  </Box>
+));
 
-    const fieldId = match[1];
-    return (
-      <motion.span
-        key={index}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: index * 0.1 }}
-        className="field-wrapper"
-      >
-        {fields[fieldId] || `{${fieldId}}`}
-      </motion.span>
-    );
-  });
-};
+const MemoizedExpansion = memo(({ 
+  expansionSentence,
+  expansionPath,
+  values,
+  onUpdate,
+  errors,
+  isFieldVisible
+}: {
+  expansionSentence: Sentence;
+  expansionPath: string[];
+  values: FormValues;
+  onUpdate: (path: string[], value: FieldValue) => void;
+  errors: Record<string, ValidationError[]>;
+  isFieldVisible: (path: string[]) => boolean;
+}) => (
+  <Box 
+    component={motion.div}
+    sx={{ display: 'inline-block', ml: 1 }}
+  >
+    <FormSentenceRenderer
+      sentence={expansionSentence}
+      path={expansionPath}
+      values={values}
+      onUpdate={onUpdate}
+      errors={errors}
+      isFieldVisible={isFieldVisible}
+    />
+  </Box>
+));
 
-export const FormSentenceRenderer: React.FC<FormSentenceRendererProps> = ({
+export const FormSentenceRenderer: React.FC<FormSentenceRendererProps> = memo(({
   sentence,
   path,
   values,
@@ -47,57 +85,84 @@ export const FormSentenceRenderer: React.FC<FormSentenceRendererProps> = ({
   errors = {},
   isFieldVisible = () => true
 }) => {
-  const renderedFields: Record<string, React.ReactNode> = {};
-  
-  // First render all base fields
-  Object.entries(sentence.fields).forEach(([fieldId, field]) => {
-    const fieldPath = [...path, fieldId];
-    const value = get(values, fieldPath.join('.')) as FieldValue;
-    const fieldErrors = errors[fieldPath.join('.')] || [];
-
-    renderedFields[fieldId] = (
-      <Box 
-        key={fieldId}
-        component={motion.div}
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.3 }}
-        sx={{ display: 'inline-block', mx: 1 }}
-      >
-        <FieldRenderer
+  const renderedFields = useMemo(() => {
+    const fields: Record<string, React.ReactNode> = {};
+    
+    Object.entries(sentence.fields).forEach(([fieldId, field]) => {
+      const fieldPath = [...path, fieldId];
+      const value = get(values, fieldPath.join('.')) as FieldValue;
+      const fieldErrors = errors[fieldPath.join('.')] || [];
+      
+      fields[fieldId] = (
+        <MemoizedFieldRenderer
+          key={fieldId}
           field={field}
           value={value}
-          path={fieldPath}
+          fieldPath={fieldPath}
           onUpdate={onUpdate}
-          errors={fieldErrors}
+          fieldErrors={fieldErrors}
           isVisible={isFieldVisible(fieldPath)}
         />
-      </Box>
-    );
-
-    // Render expansion if it exists
-    if (value && field.expansions?.[value as string]) {
-      const expansionSentence = field.expansions[value as string];
-      const expansionPath = [...fieldPath, `expansion_${value}`];
-      
-      renderedFields[`${fieldId}_expansion`] = (
-        <Box 
-          key={`${fieldId}_expansion`}
-          component={motion.div}
-          sx={{ display: 'inline-block', ml: 1 }}
-        >
-          <FormSentenceRenderer
-            sentence={expansionSentence}
-            path={expansionPath}
-            values={values}
-            onUpdate={onUpdate}
-            errors={errors}
-            isFieldVisible={isFieldVisible}
-          />
-        </Box>
       );
-    }
-  });
+
+      if (field.expansions && isFieldVisible(fieldPath)) {
+        const expansionKey = (() => {
+          if (value === null || value === undefined) return '';
+          if (Array.isArray(value)) return value[0] || '';
+          if (typeof value === 'object') {
+            if ('value' in value) return value.value;
+            const expansionKeys = Object.keys(value).filter(k => k.startsWith('expansion_'));
+            if (expansionKeys.length > 0) {
+              return expansionKeys[0].replace('expansion_', '');
+            }
+            const keys = Object.keys(value);
+            if (keys.length > 0) return keys[0];
+            return '';
+          }
+          return String(value);
+        })();
+
+        const expansionSentence = field.expansions?.[expansionKey];
+        if (expansionSentence) {
+          const expansionPath = [...fieldPath, `expansion_${expansionKey}`];
+          fields[`${fieldId}_expansion`] = (
+            <MemoizedExpansion
+              key={`${fieldId}_expansion`}
+              expansionSentence={expansionSentence}
+              expansionPath={expansionPath}
+              values={values}
+              onUpdate={onUpdate}
+              errors={errors}
+              isFieldVisible={isFieldVisible}
+            />
+          );
+        }
+      }
+    });
+
+    return fields;
+  }, [sentence.fields, path, values, onUpdate, errors, isFieldVisible]);
+
+  const templateParts = useMemo(() => 
+    sentence.template.split(/(\{[^}]+\})/g).map((part, index) => {
+      const match = part.match(/\{(\w+)\}/);
+      if (!match) return part;
+
+      const fieldId = match[1];
+      return (
+        <motion.span
+          key={index}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: index * 0.1 }}
+          className="field-wrapper"
+        >
+          {renderedFields[fieldId] || `{${fieldId}}`}
+        </motion.span>
+      );
+    }),
+    [sentence.template, renderedFields]
+  );
 
   return (
     <Box 
@@ -108,7 +173,7 @@ export const FormSentenceRenderer: React.FC<FormSentenceRendererProps> = ({
       sx={{ my: 2 }}
     >
       <Typography component="div" sx={{ mb: 2 }}>
-        {renderTemplate(sentence.template, renderedFields)}
+        {templateParts}
       </Typography>
 
       {/* Render expansion fields */}
@@ -140,4 +205,4 @@ export const FormSentenceRenderer: React.FC<FormSentenceRendererProps> = ({
       ))}
     </Box>
   );
-}; 
+}); 
